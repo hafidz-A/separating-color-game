@@ -22,6 +22,7 @@ Browser si pembuat room yang menjalankan permainan, jadi **tab host harus tetap 
 
 Di dalam room, klik tombol 📷 untuk menyalakan kamera. Wajahmu muncul sebagai bulatan kecil dengan nama di layar semua pemain. Klik lagi untuk mematikan.
 
+- **Atur ukuran kamera**: cubit (pinch) di HP, scroll mouse / pinch trackpad di laptop, atau tombol − / +. Ada batas terkecil & terbesar, dan ukuran terakhir diingat.
 - Hanya video, **audio tidak pernah diminta**.
 - Kamera baru menyala setelah kamu klik tombolnya dan browser minta izin. Tidak ada yang bisa menyalakan kamera orang lain.
 - Video dikirim langsung antar browser, tidak lewat server dan tidak disimpan.

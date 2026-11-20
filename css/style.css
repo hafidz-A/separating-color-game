@@ -102,23 +102,41 @@ button.chip:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--card-
 .side-toggle { display: none; }
 .chip.on { background: var(--pink); color: #fff; border-color: #fff; box-shadow: 0 3px 0 var(--pink-deep); }
 
-/* ---------- webcams ---------- */
+/* ---------- webcams (size set by --cam, pinch/scroll to resize) ---------- */
 #cams {
+  --cam: 128px;
   position: fixed; left: 12px; top: 70px; z-index: 4;
-  display: flex; flex-direction: column; flex-wrap: wrap; align-content: flex-start; gap: 16px 12px;
-  max-height: calc(100vh - 170px); pointer-events: none;
+  display: flex; flex-direction: column; flex-wrap: wrap; align-content: flex-start; align-items: center;
+  gap: calc(var(--cam) * 0.16) 12px;
+  max-height: calc(100vh - 170px); touch-action: none;
 }
-.cam { position: relative; width: 84px; height: 84px; flex: none; animation: pop 0.3s ease-out; }
+.cam {
+  position: relative; width: var(--cam); height: var(--cam); flex: none;
+  animation: pop 0.3s ease-out; transition: width 0.08s linear, height 0.08s linear;
+}
 .cam video {
   width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; background: #fff;
-  border: 4px solid var(--c, #fff); box-shadow: 0 4px 0 rgba(58, 42, 94, 0.15), 0 8px 18px rgba(58, 42, 94, 0.18);
+  border: max(3px, calc(var(--cam) * 0.04)) solid var(--c, #fff);
+  box-shadow: 0 4px 0 rgba(58, 42, 94, 0.15), 0 8px 18px rgba(58, 42, 94, 0.18);
 }
 .cam.me video { transform: scaleX(-1); }
 .cam span {
   position: absolute; left: 50%; bottom: -8px; transform: translateX(-50%);
-  background: var(--c, #fff); color: #fff; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px;
-  white-space: nowrap; max-width: 100px; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  background: var(--c, #fff); color: #fff; font-size: clamp(10px, calc(var(--cam) * 0.11), 15px); font-weight: 600;
+  padding: 1px 8px; border-radius: 999px;
+  white-space: nowrap; max-width: max(64px, calc(var(--cam) * 1.1)); overflow: hidden; text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
+.cam-zoom {
+  order: 99; display: flex; align-items: center; gap: 2px; background: var(--card); border: 2px solid #fff;
+  border-radius: 999px; padding: 2px; box-shadow: 0 3px 0 var(--card-edge);
+}
+.cam-zoom button {
+  width: 30px; height: 30px; border: 0; border-radius: 50%; background: #fff4fa; font-size: 18px; font-weight: 700;
+  line-height: 1; color: var(--ink); box-shadow: 0 2px 0 #f1cfe2;
+}
+.cam-zoom button:active { transform: translateY(2px); box-shadow: none; }
+.cam-zoom button:disabled { opacity: 0.35; }
 
 /* ---------- side panel ---------- */
 #side {
@@ -250,10 +268,8 @@ button.chip:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--card-
   .tools { gap: 8px; padding: 6px 8px; }
   .tool { padding: 8px 14px; font-size: 20px; }
   .tool.icon { font-size: 22px; padding: 6px 14px; }
-  #cams { pointer-events: auto; touch-action: pan-x; flex-direction: row; flex-wrap: nowrap; top: 56px; left: 8px; right: 8px; max-height: none; overflow-x: auto; gap: 8px; padding-bottom: 10px; }
-  .cam { width: 52px; height: 52px; }
-  .cam video { border-width: 3px; }
-  .cam span { font-size: 10px; bottom: -9px; max-width: 64px; padding: 0 6px; }
+  #cams { flex-direction: row; flex-wrap: wrap; top: 56px; left: 8px; right: 8px; max-height: 50vh; gap: 12px 8px; padding-bottom: 10px; }
+  .cam span { bottom: -9px; padding: 0 6px; }
   .chip { padding: 6px 10px; }
   #side { display: none; top: 62px; bottom: auto; max-height: 60vh; }
   #side.open { display: flex; }

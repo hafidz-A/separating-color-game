@@ -21,6 +21,78 @@ export class CamHub {
     this.inc = new Map(); // remote peer id -> { call, stream }
     this.tiles = new Map(); // key -> element
     this.box = document.getElementById('cams');
+    this.setupResize();
+  }
+
+  // ---- resizable webcam bubbles: pinch, scroll / trackpad pinch, or − / + ----
+  limits() {
+    const narrow = window.innerWidth <= 900;
+    return narrow
+      ? { min: 44, max: Math.max(60, Math.min(150, window.innerWidth * 0.42)), def: 76 }
+      : { min: 64, max: Math.max(90, Math.min(240, window.innerHeight * 0.34)), def: 128 };
+  }
+
+  setupResize() {
+    const key = () => 'pilahpil.camSize.' + (window.innerWidth <= 900 ? 'phone' : 'desk');
+    const read = () => { try { return parseFloat(localStorage.getItem(key())); } catch { return NaN; } };
+    this.setSize = (v, save = true) => {
+      const { min, max, def } = this.limits();
+      this.size = Math.round(Math.max(min, Math.min(max, Number.isFinite(v) ? v : def)));
+      this.box.style.setProperty('--cam', this.size + 'px');
+      this.minus.disabled = this.size <= min;
+      this.plus.disabled = this.size >= max;
+      if (save) { try { localStorage.setItem(key(), String(this.size)); } catch { /* storage unavailable */ } }
+      this.onLayout();
+    };
+
+    const zoom = document.createElement('div');
+    zoom.className = 'cam-zoom';
+    this.minus = document.createElement('button');
+    this.minus.textContent = '−';
+    this.minus.title = 'Perkecil kamera';
+    this.plus = document.createElement('button');
+    this.plus.textContent = '+';
+    this.plus.title = 'Perbesar kamera';
+    zoom.append(this.minus, this.plus);
+    this.box.append(zoom);
+    this.minus.addEventListener('click', () => this.setSize(this.size / 1.2));
+    this.plus.addEventListener('click', () => this.setSize(this.size * 1.2));
+
+    // Mouse wheel or trackpad pinch (which arrives as ctrl+wheel).
+    this.box.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const k = e.ctrlKey ? 0.01 : 0.0025;
+      this.setSize(this.size * Math.exp(-e.deltaY * k));
+    }, { passive: false });
+
+    // Two-finger pinch on the webcams.
+    const pts = new Map();
+    let start = null;
+    const dist = () => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+    this.box.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'touch') return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 2) start = { d: dist(), size: this.size };
+    });
+    this.box.addEventListener('pointermove', (e) => {
+      if (!pts.has(e.pointerId)) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 2 && start && start.d > 10) this.setSize(start.size * (dist() / start.d), false);
+    });
+    const end = (e) => {
+      if (!pts.delete(e.pointerId)) return;
+      if (start && pts.size < 2) { start = null; this.setSize(this.size); }
+    };
+    this.box.addEventListener('pointerup', end);
+    this.box.addEventListener('pointercancel', end);
+    this.box.addEventListener('pointerleave', end);
+
+    let narrow = window.innerWidth <= 900;
+    window.addEventListener('resize', () => {
+      const now = window.innerWidth <= 900;
+      if (now !== narrow) { narrow = now; this.setSize(read(), false); } else this.setSize(this.size, false);
+    });
+    this.setSize(read(), false);
   }
 
   get on() {
@@ -147,7 +219,13 @@ export class CamHub {
       el.style.setProperty('--c', w.p.color);
       el._n.textContent = w.me ? 'Kamu' : w.p.name;
     }
+    const wasHidden = this.box.hidden;
     this.box.hidden = this.tiles.size === 0;
+    if (wasHidden && !this.box.hidden && !this.hinted) {
+      this.hinted = true;
+      const touch = matchMedia('(pointer: coarse)').matches;
+      this.toast(touch ? 'Cubit (pinch) kamera untuk atur besar-kecilnya 🤏' : 'Scroll di atas kamera (atau tombol − / +) untuk atur ukurannya');
+    }
     this.onLayout();
   }
 }
