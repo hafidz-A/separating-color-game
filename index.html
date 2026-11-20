@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#ffd3ea">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>Pilah Pil</title>
-  <meta name="description" content="Game santai sortir pil warna-warni bareng teman dan pasangan. Main langsung di browser.">
-  <meta property="og:title" content="Pilah Pil">
-  <meta property="og:description" content="Game santai sortir pil warna-warni bareng teman dan pasangan. Main langsung di browser.">
+  <title>Main Yuk!</title>
+  <meta name="description" content="Kumpulan game santai bareng teman dan pasangan: sortir pil, pasang puzzle, dan golf mini. Main langsung di browser.">
+  <meta property="og:title" content="Main Yuk!">
+  <meta property="og:description" content="Kumpulan game santai bareng teman dan pasangan: sortir pil, pasang puzzle, dan golf mini. Main langsung di browser.">
   <meta property="og:type" content="website">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='6' y='22' width='52' height='20' rx='10' fill='%23ff8fb8'/%3E%3Crect x='32' y='22' width='26' height='20' rx='10' fill='%23ffd0e2'/%3E%3Crect x='32' y='22' width='10' height='20' fill='%23ffd0e2'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -68,25 +68,37 @@
       <button id="btnEmote" class="tool icon emote-toggle" title="Emote">😊</button>
     </div>
     <div id="emotes" class="emotes"></div>
-    <div class="hint">Tahan klik = dorong · Scroll/Q/E = putar · Spasi = ganti alat · 1–6 = emote</div>
+    <div id="hint" class="hint"></div>
   </footer>
 
   <main id="lobby">
     <div class="card">
       <div class="logo">
         <span class="cap"></span>
-        <h1>Pilah Pil</h1>
+        <h1>Main Yuk!</h1>
       </div>
-      <p class="tagline">Sortir pil warna-warni ke wadahnya. Santai, bareng teman dan pasangan, makin lama mejanya makin luas.</p>
+      <p class="tagline">Kumpulan game santai buat bareng teman & pasangan. Tiap level game-nya bisa beda, makin lama makin seru.</p>
+      <div class="games" aria-hidden="true"><span>💊 Pilah Pil</span><span>🧩 Pasang Puzzle</span><span>⛳ Golf Mini</span></div>
 
       <label class="field">
         <span>Nama kamu</span>
         <input id="nameInput" maxlength="16" placeholder="mis. Hafidz">
       </label>
-      <label class="field small">
-        <span>Mulai dari level</span>
-        <input id="levelInput" type="number" min="1" max="30" value="1">
-      </label>
+      <div class="row fields">
+        <label class="field">
+          <span>Permainan</span>
+          <select id="gameInput">
+            <option value="random">🎲 Acak tiap level</option>
+            <option value="pill">💊 Pilah Pil</option>
+            <option value="puzzle">🧩 Pasang Puzzle</option>
+            <option value="golf">⛳ Golf Mini</option>
+          </select>
+        </label>
+        <label class="field small">
+          <span>Mulai level</span>
+          <input id="levelInput" type="number" min="1" max="30" value="1">
+        </label>
+      </div>
 
       <div class="row">
         <button id="btnSolo" class="btn ghost">Main sendiri</button>
@@ -106,16 +118,23 @@
       <details class="how">
         <summary>Cara main</summary>
         <ul>
-          <li>Tahan klik/sentuh lalu geser <b>spatula</b> untuk mendorong pil ke wadah yang warnanya sama.</li>
-          <li>Ganti ke <b>jepit</b> (Spasi / klik kanan) untuk mengangkat sampai 6 pil sekaligus.</li>
-          <li>Scroll atau Q/E untuk memutar spatula. Pil yang salah wadah akan terpental.</li>
-          <li>Level makin tinggi: meja makin luas, warna makin banyak, ada palang, dan wadahnya mulai bergeser.</li>
-          <li>Buat room, bagikan kodenya, lalu sortir bareng sampai 10 orang.</li>
+          <li><b>💊 Pilah Pil</b>: tahan & geser spatula untuk mendorong pil ke wadah warnanya. Spasi / klik kanan = jepit (angkat 6 pil). Scroll / Q E = putar.</li>
+          <li><b>🧩 Pasang Puzzle</b>: tahan & geser kepingan ke bingkai sampai pas. Level tinggi ada kepingan miring: putar dengan ⟲ ⟳, Q / E, scroll, atau 2 jari.</li>
+          <li><b>⛳ Golf Mini</b>: tahan di mana saja, tarik ke belakang seperti ketapel, lepas untuk memukul. Lintasannya selalu baru tiap level. Awas air!</li>
+          <li>Pilih <b>Acak</b> supaya tiap level game-nya berganti, atau pilih satu game saja.</li>
+          <li>Buat room, bagikan kodenya, lalu main bareng sampai 10 orang.</li>
         </ul>
       </details>
       <p id="bestLine" class="best"></p>
     </div>
   </main>
+
+  <div id="banner" hidden aria-live="polite">
+    <div class="b-icon"></div>
+    <div class="b-name"></div>
+    <div class="b-level"></div>
+    <div class="b-hint"></div>
+  </div>
 
   <div id="clear" hidden>
     <div class="card clear-card">
@@ -129,7 +148,7 @@
   <div id="toast" role="status"></div>
 
   <script src="js/vendor/peerjs.min.js"></script>
-  <script src="js/config.js?v=6"></script>
-  <script type="module" src="js/main.js?v=6"></script>
+  <script src="js/config.js?v=9"></script>
+  <script type="module" src="js/main.js?v=9"></script>
 </body>
 </html>

@@ -1,12 +1,18 @@
-import { makeLevel, PILL_COLORS } from './levels.js';
-import { World } from './sim.js';
+import { PILL_COLORS } from './levels.js';
 import { Renderer } from './render3d.js';
+import pillMode from './modes/pill.js';
+import puzzleMode from './modes/puzzle.js';
+import golfMode from './modes/golf.js';
+import { PuzzleScene } from './scenes/puzzle.js';
+import { GolfScene } from './scenes/golf.js';
 import { HostNet, ClientNet, makeCode, cleanCode, diagnose } from './net.js';
 import { CamHub } from './cam.js';
 
 const $ = (id) => document.getElementById(id);
 const PLAYER_COLORS = ['#ff6fa3', '#4fd2ff', '#ffcb47', '#86ee8a', '#c08bff', '#ff9a5c', '#5af0d2', '#ff6be0', '#a7b6ff', '#f2f2f2'];
 const EMOTES = ['💗', '🤣', '👏', '🔥', '😴', '🫶'];
+const MODES = { pill: pillMode, puzzle: puzzleMode, golf: golfMode };
+const MODE_IDS = Object.keys(MODES);
 const MAX_PLAYERS = 10;
 const SNAP_MS = 50;
 const INPUT_MS = 33;
@@ -21,7 +27,8 @@ const S = {
   world: null,
   myId: 0,
   players: new Map(),
-  input: { x: 0, y: 0, a: -0.6, k: 'sweep', d: false },
+  input: { x: 0, y: 0, a: -0.6, k: 'sweep', d: false, q: 0 },
+  gamePref: 'random',
   remoteTools: new Map(), // client-side mirror of other players' hands
   bubbles: new Map(),
   fx: [],
@@ -43,6 +50,8 @@ const S = {
 };
 
 const renderer = new Renderer($('cv'), $('ov'));
+renderer.registerScene('puzzle', new PuzzleScene());
+renderer.registerScene('golf', new GolfScene());
 
 const cams = new CamHub({
   peer: () => (S.net ? S.net.peer : null),
@@ -97,6 +106,10 @@ const sfx = {
     tone(520 + c * 70 + Math.random() * 40, 0.11);
   },
   nope() { tone(180, 0.12, 'triangle', 0.06); },
+  snap() { tone(660, 0.06, 'square', 0.035); tone(990, 0.1, 'sine', 0.06, 0.05); },
+  hole() { [0, 5, 9].forEach((st, i) => tone(700 * Math.pow(2, st / 12), 0.14, 'sine', 0.07, i * 0.07)); },
+  shot() { tone(300, 0.05, 'triangle', 0.08); },
+  splash() { tone(140, 0.25, 'sawtooth', 0.03); tone(90, 0.3, 'sine', 0.06, 0.05); },
   msg() { tone(880, 0.07, 'sine', 0.06); tone(1175, 0.09, 'sine', 0.06, 0.07); },
   clear() { [0, 4, 7, 12].forEach((s, i) => tone(523 * Math.pow(2, s / 12), 0.22, 'sine', 0.08, i * 0.1)); },
 };
@@ -178,12 +191,47 @@ let hudKey = '';
 function updateHud() {
   const w = S.world;
   if (!w) return;
-  const key = `${w.sorted}|${w.total}|${w.n}|${Math.floor(w.time)}`;
+  const mode = MODES[w.mode];
+  const info = mode.hud(w, S.myId);
+  const key = `${w.mode}|${info.count}|${info.sub}|${w.n}|${Math.floor(w.time)}`;
   if (key === hudKey) return;
   hudKey = key;
-  $('hudCount').textContent = `${w.sorted} / ${w.total}`;
-  const colors = w.trays.length;
-  $('hudSub').textContent = `Level ${w.n} · ${colors} warna · ⏱ ${fmtTime(w.time)}`;
+  $('hudCount').textContent = info.count;
+  $('hudSub').textContent = `${mode.icon} Level ${w.n} · ${info.sub} · ⏱ ${fmtTime(w.time)}`;
+}
+
+// Show the controls, colours and title card that fit the current game.
+let uiMode = null;
+function applyModeUI(w, announce) {
+  const mode = MODES[w.mode];
+  document.body.dataset.game = w.mode;
+  if (uiMode !== w.mode) {
+    uiMode = w.mode;
+    $('toolSweep').hidden = !mode.ui.tools;
+    $('toolGrab').hidden = !mode.ui.tools;
+    const rot = !!mode.ui.rotate && (w.mode !== 'puzzle' || w.rot);
+    $('rotL').hidden = !rot;
+    $('rotR').hidden = !rot;
+    $('hint').textContent = mode.hint;
+  } else {
+    const rot = !!mode.ui.rotate && (w.mode !== 'puzzle' || w.rot);
+    $('rotL').hidden = !rot;
+    $('rotR').hidden = !rot;
+  }
+  $('rotL').parentElement.classList.toggle('empty', !mode.ui.tools && $('rotL').hidden);
+  if (announce) {
+    const b = $('banner');
+    b.querySelector('.b-icon').textContent = mode.icon;
+    b.querySelector('.b-name').textContent = mode.name;
+    b.querySelector('.b-level').textContent = `Level ${w.n}`;
+    b.querySelector('.b-hint').textContent = mode.hint;
+    b.hidden = false;
+    b.classList.remove('go');
+    void b.offsetWidth;
+    b.classList.add('go');
+    clearTimeout(applyModeUI.t);
+    applyModeUI.t = setTimeout(() => { b.hidden = true; }, 3200);
+  }
 }
 
 function setTool(k) {
@@ -218,6 +266,8 @@ function backToLobby(msg) {
   S.mode = null;
   S.world = null;
   cams.reset();
+  delete document.body.dataset.game;
+  uiMode = null;
   S.players.clear();
   S.remoteTools.clear();
   clearTimeout(S.clearTimer);
@@ -256,18 +306,28 @@ function setBusy(b) {
 }
 
 // ---------------- host / solo ----------------
-function hostNewLevel(n) {
+function pickMode(sameAs) {
+  if (sameAs) return sameAs;
+  if (S.gamePref !== 'random' && MODES[S.gamePref]) return S.gamePref;
+  const last = S.world ? S.world.mode : null;
+  const options = MODE_IDS.filter((m) => m !== last);
+  return options[Math.floor(Math.random() * options.length)];
+}
+
+function hostNewLevel(n, sameMode) {
   const seed = (Math.random() * 1e9) | 0;
-  S.world = new World(makeLevel(n, seed));
+  const mode = MODES[pickMode(sameMode)];
+  S.world = mode.create(mode.makeDef(n, seed));
   S.phase = 'play';
   S.fx = [];
   for (const p of S.players.values()) {
     p.lvl = 0;
-    const t = S.world.tool(p.id);
-    if (p.input) S.world.setInput(p.id, p.input, true);
-    if (p.id === S.myId) t.local = true;
+    S.world.join(p.id);
+    if (p.input && S.world.mode === 'pill') S.world.setInput(p.id, p.input, true);
+    if (p.id === S.myId && S.world.tools.get(p.id)) S.world.tools.get(p.id).local = true;
   }
   $('clear').hidden = true;
+  applyModeUI(S.world, true);
   if (S.net) S.net.broadcast({ t: 'level', def: S.world.describe() });
   if (S.mode === 'solo' || S.mode === 'host') {
     const best = store.get('best', 0);
@@ -278,29 +338,44 @@ function hostNewLevel(n) {
 function hostHandleEvents() {
   const w = S.world;
   for (const ev of w.events) {
-    if (ev.k === 'sort') {
+    if (ev.k === 'point') {
       const p = S.players.get(ev.by);
-      if (p) { p.score++; p.lvl = (p.lvl || 0) + 1; playersDirty = true; }
-      addSortFx(ev, p);
-    } else if (ev.k === 'nope') {
-      if (ev.by === S.myId) sfx.nope();
+      const pts = ev.pts | 0;
+      if (p && pts) { p.score += pts; p.lvl = (p.lvl || 0) + pts; playersDirty = true; }
     }
+    showEvent(ev);
     S.pendingEvents.push(ev);
   }
   w.events.length = 0;
 }
 
-function addSortFx(ev, p) {
-  S.fx.push({ x: ev.x, y: ev.y, c: ev.c, t0: performance.now(), color: p ? p.color : null });
-  if (S.fx.length > 80) S.fx.shift();
-  sfx.pop(ev.c);
+// Visual + sound feedback for a game event (host and guests alike).
+function showEvent(ev) {
+  const w = S.world;
+  if (w && w.applyEvent) w.applyEvent(ev);
+  const p = S.players.get(ev.by);
+  if (ev.k === 'point') {
+    S.fx.push({ x: ev.x, y: ev.y, c: ev.c, ring: ev.ring, text: ev.text || `+${ev.pts | 0 || 1}`, t0: performance.now(), color: p ? p.color : null });
+    if (S.fx.length > 80) S.fx.shift();
+    if (ev.sfx === 'snap') sfx.snap();
+    else if (ev.sfx === 'hole') sfx.hole();
+    else sfx.pop(ev.c | 0);
+  } else if (ev.k === 'nope') {
+    if (ev.by === S.myId) sfx.nope();
+  } else if (ev.k === 'shot') {
+    sfx.shot();
+  } else if (ev.k === 'splash') {
+    sfx.splash();
+    S.fx.push({ x: ev.x, y: ev.y, ring: '#4fc3ff', text: 'Byur! +1', t0: performance.now(), color: '#2f8fd6' });
+  }
 }
 
 function hostCheckClear() {
   const w = S.world;
   if (S.phase !== 'play' || !w.done) return;
   S.phase = 'clear';
-  const info = { t: 'clear', n: w.n, time: w.time, list: playerList() };
+  const nextHint = S.gamePref === 'random' ? 'permainan acak' : `${MODES[S.gamePref].name}, lebih susah`;
+  const info = { t: 'clear', n: w.n, mode: w.mode, nextHint, time: w.time, list: playerList() };
   if (S.net) S.net.broadcast(info);
   showClear(info);
   S.clearTimer = setTimeout(() => hostNewLevel(w.n + 1), 5000);
@@ -310,28 +385,18 @@ function hostSnapshot(now) {
   if (!S.net || now - S.lastSnap < SNAP_MS) return;
   S.lastSnap = now;
   const w = S.world;
-  const alive = w.pills.filter((p) => p.alive);
-  const buf = new Int16Array(alive.length * 4);
-  alive.forEach((p, i) => {
-    let a = p.a % (Math.PI * 2);
-    if (a > Math.PI) a -= Math.PI * 2;
-    if (a < -Math.PI) a += Math.PI * 2;
-    buf[i * 4] = p.id | (p.held >= 0 ? 0x4000 : 0);
-    buf[i * 4 + 1] = Math.round(p.x * 8);
-    buf[i * 4 + 2] = Math.round(p.y * 8);
-    buf[i * 4 + 3] = Math.round(a * 10000);
-  });
   const tl = [];
   for (const t of w.tools.values()) {
     if (!S.players.has(t.pid) || !t.seen) continue;
     tl.push([t.pid, Math.round(t.x), Math.round(t.y), +t.a.toFixed(3), t.kind === 'grab' ? 1 : 0, t.down ? 1 : 0]);
   }
+  const ev = S.pendingEvents.map((e) => ({
+    k: e.k, by: e.by, x: Math.round(e.x || 0), y: Math.round(e.y || 0), ring: e.ring, pts: e.pts, sfx: e.sfx, c: e.c, ti: e.ti, text: e.text,
+  }));
   S.net.broadcast({
-    t: 's', b: buf.buffer, time: +w.time.toFixed(3), sorted: w.sorted,
-    tc: w.trays.map((t) => t.count), tl,
+    t: 's', mode: w.mode, time: +w.time.toFixed(3), tl,
     sc: [...S.players.values()].map((p) => [p.id, p.score]),
-    ev: S.pendingEvents.filter((e) => e.k === 'sort').map((e) => [e.id, e.by, e.c, e.ti, Math.round(e.x), Math.round(e.y)]),
-    np: S.pendingEvents.filter((e) => e.k === 'nope').map((e) => [e.ti, e.by]),
+    ev, ...w.snapshot(),
   });
   S.pendingEvents.length = 0;
 }
@@ -353,7 +418,7 @@ const hostHandlers = {
       conn.pid = id;
       const p = { id, name: cleanName(msg.name), color: freeColor(), score: 0, lvl: 0, conn, peer: conn.peer, cam: false };
       S.players.set(id, p);
-      S.world.tool(id);
+      S.world.join(id);
       conn.send({ t: 'welcome', id, code: S.code, players: playerList(), def: S.world.describe(), phase: S.phase, hist: S.chatHistory });
       S.net.broadcast({ t: 'players', list: playerList(), join: p.name }, conn);
       cams.sync();
@@ -391,7 +456,7 @@ const hostHandlers = {
     const p = S.players.get(conn.pid);
     if (!p) return;
     S.players.delete(p.id);
-    S.world.removeTool(p.id);
+    S.world.leave(p.id);
     S.net.broadcast({ t: 'players', list: playerList(), left: p.name });
     cams.sync();
     addChat('', '', `${p.name} keluar`, true);
@@ -521,34 +586,20 @@ function setPlayers(list) {
 }
 
 function clientLoadLevel(def) {
-  S.world = new World(def);
+  const mode = def && MODES[def.mode || 'pill'];
+  if (!mode) return;
+  S.world = mode.create(def);
   S.phase = 'play';
   S.fx = [];
+  S.remoteTools.clear();
+  applyModeUI(S.world, true);
 }
 
 function clientSnapshot(msg) {
   const w = S.world;
-  if (!w) return;
+  if (!w || (msg.mode && msg.mode !== w.mode)) return;
   w.time = +msg.time || 0;
-  w.sorted = msg.sorted | 0;
-  if (Array.isArray(msg.tc)) msg.tc.forEach((c, i) => { if (w.trays[i]) w.trays[i].count = c | 0; });
-  let raw = msg.b;
-  if (raw && ArrayBuffer.isView(raw)) raw = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength);
-  if (raw instanceof ArrayBuffer) {
-    const buf = new Int16Array(raw);
-    for (const p of w.pills) p.seen = false;
-    for (let i = 0; i + 3 < buf.length; i += 4) {
-      const id = buf[i] & 0x3fff;
-      const p = w.byId.get(id);
-      if (!p) continue;
-      p.seen = true;
-      p.held = buf[i] & 0x4000 ? 1 : -1;
-      p.x = buf[i + 1] / 8;
-      p.y = buf[i + 2] / 8;
-      p.a = buf[i + 3] / 10000;
-    }
-    for (const p of w.pills) if (!p.seen) p.alive = false;
-  }
+  w.applySnapshot(msg);
   if (Array.isArray(msg.tl)) {
     for (const [pid, x, y, a, k, d] of msg.tl) {
       if (pid === S.myId) continue;
@@ -564,16 +615,14 @@ function clientSnapshot(msg) {
     }
   }
   if (Array.isArray(msg.ev)) {
-    for (const [, by, c, ti, x, y] of msg.ev) {
-      const tr = w.trays[ti];
-      if (tr) tr.flash = 0.35;
-      addSortFx({ x, y, c }, S.players.get(by));
-    }
-  }
-  if (Array.isArray(msg.np)) {
-    for (const [ti, by] of msg.np) {
-      if (w.trays[ti]) w.trays[ti].nope = 0.4;
-      if (by === S.myId) sfx.nope();
+    for (const ev of msg.ev) {
+      if (!ev || typeof ev !== 'object') continue;
+      showEvent({
+        k: String(ev.k), by: ev.by, x: +ev.x || 0, y: +ev.y || 0, pts: ev.pts | 0, c: ev.c | 0, ti: ev.ti,
+        ring: /^#[0-9a-f]{3,8}$/i.test(ev.ring || '') ? ev.ring : undefined,
+        sfx: typeof ev.sfx === 'string' ? ev.sfx : undefined,
+        text: typeof ev.text === 'string' ? ev.text.slice(0, 20) : undefined,
+      });
     }
   }
 }
@@ -679,7 +728,9 @@ function sendChat(m) {
 }
 
 function showClear(info) {
-  $('clearTitle').textContent = `Level ${info.n} beres! ✨`;
+  const mode = MODES[info.mode] || MODES.pill;
+  const unit = info.mode === 'puzzle' ? 'keping' : info.mode === 'golf' ? 'poin' : 'pil';
+  $('clearTitle').textContent = `${mode.icon} ${mode.name} beres! ✨`;
   $('clearTime').textContent = `Waktu: ${fmtTime(info.time)}`;
   const ol = $('clearList');
   ol.textContent = '';
@@ -690,7 +741,7 @@ function showClear(info) {
       const b = document.createElement('b');
       b.style.color = p.color;
       b.textContent = cleanName(p.name);
-      li.append(b, document.createTextNode(` — ${p.lvl | 0} pil`));
+      li.append(b, document.createTextNode(` — ${p.lvl | 0} ${unit}`));
       ol.append(li);
     }
   }
@@ -698,7 +749,7 @@ function showClear(info) {
   sfx.clear();
   let left = 5;
   const tick = () => {
-    $('clearNext').textContent = left > 0 ? `Level ${info.n + 1} (meja lebih luas) mulai dalam ${left}…` : 'Menyiapkan meja…';
+    $('clearNext').textContent = left > 0 ? `Level ${info.n + 1} (${info.nextHint || 'permainan acak'}) mulai dalam ${left}…` : 'Menyiapkan permainan…';
     left--;
     if (left >= 0 && !$('clear').hidden) setTimeout(tick, 1000);
   };
@@ -709,6 +760,16 @@ function showClear(info) {
 const cv = $('cv');
 let pointerType = 'mouse';
 let rotDir = 0;
+const curGame = () => (S.world ? S.world.mode : null);
+// Puzzle pieces turn in quarter steps; the counter travels with the input.
+let lastStep = 0;
+function stepRotate(dir) {
+  const now = performance.now();
+  if (now - lastStep < 160) return;
+  lastStep = now;
+  S.input.q = (S.input.q | 0) + dir;
+}
+let twistAcc = 0;
 
 function pointerToWorld(e) {
   S.hasPointer = true;
@@ -736,7 +797,11 @@ cv.addEventListener('pointermove', (e) => {
       let d = ang - twistAngle;
       while (d > Math.PI) d -= Math.PI * 2;
       while (d < -Math.PI) d += Math.PI * 2;
-      S.input.a += d;
+      if (curGame() === 'pill') S.input.a += d;
+      else if (curGame() === 'puzzle') {
+        twistAcc += d;
+        if (Math.abs(twistAcc) > 0.7) { stepRotate(Math.sign(twistAcc)); twistAcc = 0; }
+      }
       twistAngle = ang;
       return;
     }
@@ -749,7 +814,11 @@ cv.addEventListener('pointerdown', (e) => {
   pointerType = e.pointerType;
   if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
   $('emotes').classList.remove('open');
-  if (e.button === 2) { setTool(S.input.k === 'sweep' ? 'grab' : 'sweep'); return; }
+  if (e.button === 2) {
+    if (curGame() === 'pill') setTool(S.input.k === 'sweep' ? 'grab' : 'sweep');
+    else if (curGame() === 'puzzle') stepRotate(1);
+    return;
+  }
   try { cv.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
   if (e.pointerType === 'touch') {
     touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -757,6 +826,7 @@ cv.addEventListener('pointerdown', (e) => {
       // Second finger: rotate instead of pushing.
       S.input.d = false;
       twistAngle = twist();
+      twistAcc = 0;
       return;
     }
     primaryId = e.pointerId;
@@ -778,7 +848,8 @@ cv.addEventListener('pointercancel', release);
 cv.addEventListener('contextmenu', (e) => e.preventDefault());
 cv.addEventListener('wheel', (e) => {
   e.preventDefault();
-  S.input.a += Math.sign(e.deltaY) * 0.14;
+  if (curGame() === 'puzzle') stepRotate(Math.sign(e.deltaY));
+  else S.input.a += Math.sign(e.deltaY) * 0.14;
 }, { passive: false });
 
 window.addEventListener('keydown', (e) => {
@@ -789,9 +860,10 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   const k = e.key.toLowerCase();
-  if (k === 'q') rotDir = -1;
+  if ((k === 'q' || k === 'e') && curGame() === 'puzzle') { if (!e.repeat) stepRotate(k === 'q' ? -1 : 1); }
+  else if (k === 'q') rotDir = -1;
   else if (k === 'e') rotDir = 1;
-  else if (e.code === 'Space') { e.preventDefault(); setTool(S.input.k === 'sweep' ? 'grab' : 'sweep'); }
+  else if (e.code === 'Space') { e.preventDefault(); if (curGame() === 'pill') setTool(S.input.k === 'sweep' ? 'grab' : 'sweep'); }
   else if (k >= '1' && k <= '6') sendEmote(+k - 1);
   else if (e.key === 'Enter' && S.mode !== 'solo') { e.preventDefault(); $('chatInput').focus(); }
 });
@@ -803,7 +875,10 @@ window.addEventListener('blur', () => { rotDir = 0; S.input.d = false; });
 
 function holdButton(el, dir) {
   const stop = () => { rotDir = 0; };
-  el.addEventListener('pointerdown', (e) => { e.preventDefault(); rotDir = dir; });
+  el.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    if (curGame() === 'puzzle') { lastStep = 0; stepRotate(dir); } else rotDir = dir;
+  });
   el.addEventListener('pointerup', stop);
   el.addEventListener('pointerleave', stop);
   el.addEventListener('pointercancel', stop);
@@ -847,7 +922,7 @@ QUICK.forEach((q) => {
 });
 $('btnReshuffle').addEventListener('click', () => {
   if (S.mode === 'client' || !S.world || S.phase !== 'play') return;
-  hostNewLevel(S.world.n);
+  hostNewLevel(S.world.n, S.world.mode);
   toast('Level diacak ulang');
 });
 $('btnCopy').addEventListener('click', async () => {
@@ -889,8 +964,14 @@ function ensureName() {
   if (!$('nameInput').value.trim()) $('nameInput').value = 'Pil' + Math.floor(Math.random() * 900 + 100);
   store.set('name', cleanName($('nameInput').value));
 }
-$('btnSolo').addEventListener('click', () => { ac(); ensureName(); startSolo(chosenLevel()); });
-$('btnHost').addEventListener('click', () => { ac(); ensureName(); startHost(chosenLevel()); });
+function readGamePref() {
+  const v = $('gameInput').value;
+  S.gamePref = MODES[v] ? v : 'random';
+  store.set('game', S.gamePref);
+}
+$('gameInput').value = store.get('game', 'random');
+$('btnSolo').addEventListener('click', () => { ac(); ensureName(); readGamePref(); startSolo(chosenLevel()); });
+$('btnHost').addEventListener('click', () => { ac(); ensureName(); readGamePref(); startHost(chosenLevel()); });
 $('joinForm').addEventListener('submit', (e) => { e.preventDefault(); ac(); ensureName(); joinRoom($('codeInput').value); });
 $('codeInput').addEventListener('input', () => { $('codeInput').value = cleanCode($('codeInput').value); });
 
@@ -962,7 +1043,7 @@ function frame(now) {
   last = now;
   const w = S.world;
 
-  if (rotDir) S.input.a += rotDir * 3 * dt;
+  if (rotDir && (!w || w.mode === 'pill')) S.input.a += rotDir * 3 * dt;
   if (S.input.a > Math.PI) S.input.a -= Math.PI * 2;
   if (S.input.a < -Math.PI) S.input.a += Math.PI * 2;
 
@@ -986,17 +1067,8 @@ function frame(now) {
     hostSnapshot(now);
   } else if (w && S.mode === 'client') {
     w.time += S.phase === 'play' ? dt : 0;
-    w.updateTrays();
+    w.clientTick(dt);
     const k = 1 - Math.exp(-dt * 18);
-    for (const p of w.pills) {
-      if (!p.alive) continue;
-      p.rx += (p.x - p.rx) * k;
-      p.ry += (p.y - p.ry) * k;
-      let da = p.a - p.ra;
-      while (da > Math.PI) da -= Math.PI * 2;
-      while (da < -Math.PI) da += Math.PI * 2;
-      p.ra += da * k;
-    }
     for (const t of S.remoteTools.values()) {
       if (t.tx == null) continue;
       t.x += (t.tx - t.x) * k;
@@ -1006,12 +1078,11 @@ function frame(now) {
       while (da < -Math.PI) da += Math.PI * 2;
       t.a += da * k;
     }
-    for (const tr of w.trays) { tr.flash = Math.max(0, tr.flash - dt); tr.nope = Math.max(0, tr.nope - dt); }
-    const key = `${Math.round(S.input.x)}|${Math.round(S.input.y)}|${S.input.a.toFixed(2)}|${S.input.k}|${S.input.d}`;
+    const key = `${Math.round(S.input.x)}|${Math.round(S.input.y)}|${S.input.a.toFixed(2)}|${S.input.k}|${S.input.d}|${S.input.q}`;
     if (S.hasPointer && key !== S.lastInputKey && now - S.lastInputSent > INPUT_MS) {
       S.lastInputKey = key;
       S.lastInputSent = now;
-      S.net.send({ t: 'in', x: Math.round(S.input.x), y: Math.round(S.input.y), a: +S.input.a.toFixed(3), k: S.input.k, d: S.input.d ? 1 : 0 });
+      S.net.send({ t: 'in', x: Math.round(S.input.x), y: Math.round(S.input.y), a: +S.input.a.toFixed(3), k: S.input.k, d: S.input.d ? 1 : 0, q: S.input.q | 0 });
     }
   }
 
@@ -1027,7 +1098,11 @@ function frame(now) {
       if (p.id === S.myId) src = S.hasPointer ? { x: S.input.x, y: S.input.y, a: S.input.a, kind: S.input.k, down: S.input.d } : null;
       else if (S.mode === 'client') src = S.remoteTools.get(p.id);
       else src = w.tools.get(p.id);
-      if (!src || src.x == null || src.seen === 0) continue;
+      if (!src || src.x == null || src.seen === 0) {
+        // Golf shows every player's ball even before they touch the screen.
+        if (w.mode !== 'golf') continue;
+        src = { x: null };
+      }
       tools.push({ pid: p.id, x: src.x, y: src.y, a: src.a, kind: src.kind, down: src.down, color: p.color, name: p.name, me: p.id === S.myId, bubble: S.bubbles.get(p.id) });
     }
     // Draw my own hand last so it is always on top.
@@ -1071,4 +1146,4 @@ onResize();
 requestAnimationFrame(frame);
 
 // Exposed for automated tests.
-window.__pilahpil = { S, PILL_COLORS };
+window.__pilahpil = { S, PILL_COLORS, MODES, renderer };

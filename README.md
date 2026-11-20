@@ -1,14 +1,19 @@
-# Pilah Pil 💊
+# Main Yuk! 🎲
 
-Game santai 3D di browser: sortir pil warna-warni ke wadah yang warnanya sama, sendirian, berdua sama pasangan, atau **bareng sampai 10 orang**. Makin tinggi levelnya, mejanya makin luas dan makin susah.
+Kumpulan game santai 3D di browser buat dimainkan sendiri, berdua sama pasangan, atau **bareng sampai 10 orang**. Tiap level game-nya bisa diacak, makin tinggi makin susah.
 
-## Cara main
+| Game | Cara main | Makin tinggi levelnya… |
+|---|---|---|
+| 💊 **Pilah Pil** | Tahan & geser spatula untuk mendorong pil ke wadah warnanya. Spasi / klik kanan = jepit (angkat 6 pil). Scroll / Q E = putar. | meja makin luas, warna makin banyak, ada palang permen, wadah bergeser, lantai makin licin |
+| 🧩 **Pasang Puzzle** | Tahan & geser kepingan jigsaw ke bingkai sampai pas. | kepingan makin banyak (6 → 48), gambar makin samar, mulai level 5 ada kepingan miring yang harus diputar (⟲ ⟳ / Q E / scroll / 2 jari) |
+| ⛳ **Golf Mini** | Tahan di mana saja, tarik ke belakang seperti ketapel, lepas untuk memukul. Tiap pemain punya bola sendiri. | lintasan lebih panjang & berbelok, ada bumper, pasir, kolam air, kincir berputar, dan sekat. **Lintasan selalu baru tiap level.** |
 
-- **Spatula**: tahan klik/sentuh lalu geser untuk mendorong pil. Scroll mouse atau **Q / E** untuk memutar.
-- **Jepit**: tekan **Spasi** (atau klik kanan) untuk ganti alat, lalu tahan klik untuk mengangkat sampai 6 pil sekaligus.
-- Pil yang masuk ke wadah dengan warna yang salah akan terpental keluar.
+Di menu awal pilih **🎲 Acak tiap level** (game berganti tiap level) atau satu game saja.
+
+## Kontrol umum
+
 - **1–6** untuk emote, **Enter** untuk chat (di mode room).
-- Level selesai kalau semua pil sudah tersortir. Level berikutnya mulai otomatis.
+- Level selesai kalau semua pil tersortir / puzzle lengkap / semua bola masuk. Level berikutnya mulai otomatis.
 
 ## Main bareng teman & pasangan
 
@@ -61,16 +66,6 @@ Di dalam room, klik tombol 📷 untuk menyalakan kamera. Wajahmu muncul sebagai 
 - Tombol ⛶ untuk layar penuh (Android). 😊 untuk membuka emote. 👥 untuk daftar pemain & chat.
 - Grafis otomatis diringankan di HP biar tetap lancar.
 
-## Tingkat kesulitan
-
-| Level | Yang berubah |
-|---|---|
-| 1–2 | 2 warna, meja kecil |
-| 3+ | Muncul palang permen; pil mentok, tapi spatula bisa lewat di atasnya |
-| 4+ | Pil tersebar di beberapa tumpukan |
-| 6+ | Wadahnya mulai bergeser pelan-pelan |
-| tiap level | +1 warna tiap 2 level (maks 7), lebih banyak pil (sampai 210), meja makin luas, dan lantainya makin licin |
-
 ## Menjalankan
 
 Cuma file statis, tidak perlu build dan tidak perlu server game sendiri.
@@ -81,8 +76,9 @@ Cuma file statis, tidak perlu build dan tidak perlu server game sendiri.
 
 ## Teknis
 
-- `js/levels.js`: generator level (warna, ukuran meja, wadah, palang, posisi pil)
-- `js/sim.js`: fisika pil, spatula, jepit, dan pengecekan wadah
+- `js/modes/`: aturan tiap game (`pill.js`, `puzzle.js`, `golf.js`): pembuat level, fisika, dan data yang dikirim ke pemain lain
+- `js/scenes/`: tampilan 3D puzzle dan golf; Pilah Pil ada di `js/render3d.js`
+- `js/levels.js`, `js/sim.js`: level & fisika Pilah Pil
 - `js/render3d.js`: tampilan 3D pakai [three.js](https://threejs.org) (MIT, di-vendor di `js/vendor/`): pil kapsul & tablet glossy, wadah, palang permen, spatula dengan hiasan (hati, bintang, bunga, awan, permata) per pemain
 - `js/cam.js`: kamera opsional (video saja) antar pemain lewat WebRTC
 - `js/net.js`: multiplayer peer-to-peer lewat WebRTC ([PeerJS](https://peerjs.com), MIT, di-vendor di `js/vendor/`)

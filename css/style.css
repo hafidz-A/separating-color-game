@@ -350,3 +350,54 @@ button.chip:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--card-
   .hud-center .sub { font-size: 12px; }
   #cams { top: 112px; }
 }
+
+/* ---------- game picker ---------- */
+.games { display: flex; flex-wrap: wrap; gap: 6px; margin: -6px 0 16px; }
+.games span { background: #fff; border-radius: 999px; padding: 4px 10px; font-size: 13px; font-weight: 600; box-shadow: 0 2px 0 var(--card-edge); }
+.row.fields { align-items: flex-end; }
+.row.fields .field.small { flex: none; }
+#gameInput {
+  width: 100%; background: #fff; border: 2px solid var(--card-edge); border-radius: 14px; padding: 11px 12px;
+  font: inherit; font-size: 15px; font-weight: 500; color: var(--ink); outline: none; appearance: none; -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%), linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 52%, calc(100% - 12px) 52%; background-size: 6px 6px; background-repeat: no-repeat;
+}
+#gameInput:focus { border-color: var(--pink); }
+
+/* ---------- level title card ---------- */
+#banner {
+  position: fixed; left: 50%; top: 42%; z-index: 9; transform: translate(-50%, -50%); pointer-events: none; text-align: center;
+  background: rgba(255, 255, 255, 0.94); border: 3px solid #fff; border-radius: 28px; padding: 16px 28px 18px;
+  box-shadow: 0 6px 0 var(--card-edge), 0 24px 60px rgba(58, 42, 94, 0.25); max-width: min(420px, calc(100vw - 32px));
+}
+#banner.go { animation: banner 3.2s ease-in-out forwards; }
+#banner .b-icon { font-size: 46px; line-height: 1; }
+#banner .b-name { font-size: 30px; font-weight: 700; margin-top: 4px; }
+#banner .b-level { font-size: 15px; font-weight: 600; color: var(--pink-deep); }
+#banner .b-hint { font-size: 14px; color: var(--ink-soft); margin-top: 6px; line-height: 1.35; }
+@keyframes banner {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+  12% { opacity: 1; transform: translate(-50%, -50%) scale(1.04); }
+  18% { transform: translate(-50%, -50%) scale(1); }
+  82% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -60%) scale(0.95); }
+}
+
+/* ---------- per-game themes ---------- */
+body[data-game='puzzle'] {
+  background:
+    radial-gradient(900px 500px at 15% 10%, rgba(255, 255, 255, 0.5), transparent 60%),
+    linear-gradient(160deg, #ffe8cc 0%, #ffd9b8 45%, #f6c9a8 100%);
+  background-attachment: fixed;
+}
+body[data-game='puzzle'] .count { text-shadow: 0 3px 0 #c9773d, 0 -2px 0 #c9773d, 2px 0 0 #c9773d, -2px 0 0 #c9773d, 0 6px 14px rgba(120, 60, 20, 0.3); }
+body[data-game='golf'] {
+  background:
+    radial-gradient(700px 300px at 20% 12%, rgba(255, 255, 255, 0.8), transparent 60%),
+    radial-gradient(600px 260px at 85% 20%, rgba(255, 255, 255, 0.7), transparent 60%),
+    linear-gradient(180deg, #8fd3ff 0%, #bfe8ff 55%, #d9f5d0 100%);
+  background-attachment: fixed;
+}
+body[data-game='golf'] .count { text-shadow: 0 3px 0 #2f9e57, 0 -2px 0 #2f9e57, 2px 0 0 #2f9e57, -2px 0 0 #2f9e57, 0 6px 14px rgba(20, 90, 40, 0.3); }
+
+@media (min-width: 901px) { .tools.empty { display: none; } }

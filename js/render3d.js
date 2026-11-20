@@ -18,7 +18,7 @@ const PILL = PILL_COLORS.map((c) => new THREE.Color(c.hex));
 const PILL_LIGHT = PILL_COLORS.map((c) => new THREE.Color(c.hex).lerp(WHITE, 0.62));
 
 // ---------- geometry helpers ----------
-function roundRectShape(x, y, w, h, r) {
+export function roundRectShape(x, y, w, h, r) {
   const s = new THREE.Shape();
   s.moveTo(x + r, y);
   s.lineTo(x + w - r, y);
@@ -32,7 +32,7 @@ function roundRectShape(x, y, w, h, r) {
   return s;
 }
 
-function roundRectPath(x, y, w, h, r) {
+export function roundRectPath(x, y, w, h, r) {
   const p = new THREE.Path();
   p.moveTo(x + r, y);
   p.lineTo(x + w - r, y);
@@ -47,7 +47,7 @@ function roundRectPath(x, y, w, h, r) {
 }
 
 // Extrude a 2D shape (in sim coordinates) into a slab whose top sits at topY.
-function slab(shape, depth, topY, bevel = 3) {
+export function slab(shape, depth, topY, bevel = 3) {
   const g = new THREE.ExtrudeGeometry(shape, {
     depth, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 4, curveSegments: 10,
   });
@@ -83,7 +83,7 @@ function tabletGeometry(r, h) {
   return new THREE.LatheGeometry(pts, 26);
 }
 
-function heartGeometry() {
+export function heartGeometry() {
   const s = new THREE.Shape();
   s.moveTo(0, -9);
   s.bezierCurveTo(-3, -5, -12, -2, -12, 4);
@@ -97,7 +97,7 @@ function heartGeometry() {
   return g;
 }
 
-function starGeometry() {
+export function starGeometry() {
   const s = new THREE.Shape();
   for (let i = 0; i < 10; i++) {
     const r = i % 2 ? 6 : 13;
@@ -110,7 +110,7 @@ function starGeometry() {
   return g;
 }
 
-function flowerGroup(mat, center) {
+export function flowerGroup(mat, center) {
   const g = new THREE.Group();
   const petal = new THREE.SphereGeometry(6, 16, 12);
   for (let i = 0; i < 5; i++) {
@@ -126,7 +126,7 @@ function flowerGroup(mat, center) {
   return g;
 }
 
-function cloudGroup(mat) {
+export function cloudGroup(mat) {
   const g = new THREE.Group();
   const sph = new THREE.SphereGeometry(1, 16, 12);
   for (const [x, y, r] of [[-7, -1, 6.5], [0, 3, 8.5], [7.5, -1, 6.5], [0, -3, 6.5]]) {
@@ -138,7 +138,7 @@ function cloudGroup(mat) {
   return g;
 }
 
-function toyMaterial(color, extra = {}) {
+export function toyMaterial(color, extra = {}) {
   return new THREE.MeshPhysicalMaterial({ color, roughness: 0.38, clearcoat: 0.9, clearcoatRoughness: 0.25, ...extra });
 }
 
@@ -181,7 +181,7 @@ function candyTexture(color) {
   return t;
 }
 
-function disposeTree(obj) {
+export function disposeTree(obj) {
   obj.traverse((o) => {
     if (o.geometry) o.geometry.dispose();
     if (o.material) {
@@ -193,7 +193,7 @@ function disposeTree(obj) {
   });
 }
 
-function hash3(a, b, c) {
+export function hash3(a, b, c) {
   return mulberry32(a * 73856093 ^ b * 19349663 ^ c * 83492791);
 }
 
@@ -282,6 +282,77 @@ export class Renderer {
     this.transient = new Map();
     this.curWorld = null;
     this.demo = null;
+    this.scenes = {};
+    this.markers = new Map();
+  }
+
+  // Other games plug in a scene object: { build(world, core), update(world, view, core, now) }.
+  registerScene(id, scene) {
+    this.scenes[id] = scene;
+  }
+
+  makeTopper(kindIdx, mat, light) {
+    const g = this.toolGeo;
+    switch (kindIdx % 5) {
+      case 0: return new THREE.Mesh(g.heart, mat);
+      case 1: return new THREE.Mesh(g.star, mat);
+      case 2: return flowerGroup(mat, toyMaterial('#fff3a6'));
+      case 3: return cloudGroup(light);
+      default: return new THREE.Mesh(g.gem, mat);
+    }
+  }
+
+  // A floating player marker (the player's topper plus a ring), for scenes
+  // without the spatula. Unused markers are hidden every frame.
+  marker(pid, color) {
+    let mk = this.markers.get(pid);
+    if (mk && mk.color !== color) {
+      this.scene.remove(mk.topper, mk.ring);
+      this.markers.delete(pid);
+      mk = null;
+    }
+    if (!mk) {
+      const mat = toyMaterial(color);
+      const light = toyMaterial(new THREE.Color(color).lerp(WHITE, 0.6));
+      const topper = this.makeTopper(pid, mat, light);
+      topper.traverse((c) => { if (c.isMesh) c.castShadow = true; });
+      const ringMat = toyMaterial(color, { transparent: true, opacity: 0.7 });
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(18, 2.6, 10, 40).rotateX(Math.PI / 2), ringMat);
+      this.scene.add(topper, ring);
+      mk = { color, topper, ring, ringMat, phase: pid * 1.7 };
+      this.markers.set(pid, mk);
+    }
+    mk.used = true;
+    mk.topper.visible = true;
+    return mk;
+  }
+
+  // Place a marker's topper at world position (sim x, height, sim y), facing the camera.
+  placeMarker(mk, x, h, y, now, scale = 1) {
+    mk.topper.position.set(x - this.W / 2, h, y - this.H / 2);
+    mk.topper.quaternion.copy(this.camera.quaternion);
+    mk.topper.rotateZ(Math.sin(now / 600 + mk.phase) * 0.25);
+    mk.topper.scale.setScalar(scale * (1 + Math.sin(now / 300 + mk.phase) * 0.04));
+  }
+
+  clearLevel() {
+    disposeTree(this.levelGroup);
+    this.levelGroup.clear();
+    for (const el of this.trayEls) el.remove();
+    this.trayEls = [];
+  }
+
+  setStage(W, H) {
+    this.W = W;
+    this.H = H;
+    const S = Math.max(W, H);
+    this.sun.position.set(-W * 0.25, S * 1.1, H * 0.55);
+    this.sun.target.position.set(0, 0, 0);
+    const sc = this.sun.shadow.camera;
+    sc.left = -S * 0.75; sc.right = S * 0.75; sc.top = S * 0.75; sc.bottom = -S * 0.75;
+    sc.near = 10; sc.far = S * 3;
+    sc.updateProjectionMatrix();
+    this.fitKey = '';
   }
 
   resize() {
@@ -350,10 +421,7 @@ export class Renderer {
 
   // ---- level scenery ----
   buildLevel(world, decorative) {
-    disposeTree(this.levelGroup);
-    this.levelGroup.clear();
-    for (const el of this.trayEls) el.remove();
-    this.trayEls = [];
+    this.clearLevel();
     const { W, H } = world;
     this.W = W;
     this.H = H;
@@ -415,14 +483,7 @@ export class Renderer {
       this.levelGroup.add(m);
     });
 
-    const S = Math.max(W, H);
-    this.sun.position.set(-W * 0.25, S * 1.1, H * 0.55);
-    this.sun.target.position.set(0, 0, 0);
-    const sc = this.sun.shadow.camera;
-    sc.left = -S * 0.75; sc.right = S * 0.75; sc.top = S * 0.75; sc.bottom = -S * 0.75;
-    sc.near = 10; sc.far = S * 3;
-    sc.updateProjectionMatrix();
-    this.fitKey = '';
+    this.setStage(W, H);
   }
 
   // ---- tools ----
@@ -539,9 +600,14 @@ export class Renderer {
       world = this.demo;
       decorative = true;
     }
+    const sceneObj = this.scenes[world.mode];
     if (world !== this.curWorld) {
       this.curWorld = world;
-      this.buildLevel(world, decorative);
+      if (sceneObj) {
+        this.clearLevel();
+        sceneObj.build(world, this);
+        this.setStage(world.W, world.H);
+      } else this.buildLevel(world, decorative);
     }
     const { W, H } = world;
     const now = view.now;
@@ -567,6 +633,54 @@ export class Renderer {
       }
     }
 
+    const anchors = new Map();
+    for (const mk of this.markers.values()) mk.used = false;
+    if (sceneObj) {
+      // Another game: hide the pill pieces and spatulas, let the scene draw.
+      this.capA.count = this.capB.count = this.tab.count = 0;
+      for (const pid of [...this.toolObjs.keys()]) this.dropTool(pid);
+      const got = sceneObj.update(world, view, this, now);
+      if (got) for (const [k, v] of got) anchors.set(k, v);
+    } else {
+      this.drawPills(world, view, now, decorative, anchors);
+    }
+    for (const mk of this.markers.values()) if (!mk.used) { mk.topper.visible = false; mk.ring.visible = false; }
+
+    // name tags + chat bubbles above each player's anchor
+    const seenTags = new Set();
+    for (const t of decorative ? [] : view.tools) {
+      const top = anchors.get(t.pid);
+      if (!top) continue;
+      seenTags.add(t.pid);
+      let el = this.tagEls.get(t.pid);
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'tag';
+        const name = document.createElement('span');
+        name.className = 'name';
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        el.append(bubble, name);
+        el._name = name;
+        el._bubble = bubble;
+        this.ov.append(el);
+        this.tagEls.set(t.pid, el);
+      }
+      const label = t.me ? `${t.name} (kamu)` : t.name;
+      if (el._label !== label) { el._label = label; el._name.textContent = label; }
+      el._name.style.background = t.color;
+      el._name.hidden = t.me && !view.showOwnTag;
+      const bub = t.bubble && now < t.bubble.until ? t.bubble.text : '';
+      if (el._bubText !== bub) { el._bubText = bub; el._bubble.textContent = bub; el._bubble.hidden = !bub; }
+      this.place(el, this.project(top.x + W / 2, top.z + H / 2, top.y + 52));
+    }
+    for (const [pid, el] of this.tagEls) if (!seenTags.has(pid)) { el.remove(); this.tagEls.delete(pid); }
+
+    this.drawCommon(world, view, now);
+  }
+
+  drawPills(world, view, now, decorative, anchors) {
+    const { W, H } = world;
     // trays
     world.trays.forEach((tr, i) => {
       const g = tr.mesh;
@@ -631,37 +745,19 @@ export class Renderer {
     this.tab.instanceMatrix.needsUpdate = true;
     if (this.tab.instanceColor) this.tab.instanceColor.needsUpdate = true;
 
-    // tools + name tags
+    // spatulas / tongs
     const seenTools = new Set();
     for (const t of decorative ? [] : view.tools) {
+      if (t.x == null) continue;
       seenTools.add(t.pid);
-      const top = this.drawTool(t, now);
-      let el = this.tagEls.get(t.pid);
-      if (!el) {
-        el = document.createElement('div');
-        el.className = 'tag';
-        const name = document.createElement('span');
-        name.className = 'name';
-        const bubble = document.createElement('div');
-        bubble.className = 'bubble';
-        el.append(bubble, name);
-        el._name = name;
-        el._bubble = bubble;
-        this.ov.append(el);
-        this.tagEls.set(t.pid, el);
-      }
-      const label = t.me ? `${t.name} (kamu)` : t.name;
-      if (el._label !== label) { el._label = label; el._name.textContent = label; }
-      el._name.style.background = t.color;
-      el._name.hidden = t.me && !view.showOwnTag;
-      const bub = t.bubble && now < t.bubble.until ? t.bubble.text : '';
-      if (el._bubText !== bub) { el._bubText = bub; el._bubble.textContent = bub; el._bubble.hidden = !bub; }
-      this.place(el, this.project(top.x + W / 2, top.z + H / 2, top.y + 52));
+      anchors.set(t.pid, this.drawTool(t, now));
     }
     for (const pid of [...this.toolObjs.keys()]) if (!seenTools.has(pid)) this.dropTool(pid);
-    for (const [pid, el] of this.tagEls) if (!seenTools.has(pid)) { el.remove(); this.tagEls.delete(pid); }
+  }
 
-    // sort effects: expanding ring on the table + floating "+1"
+  drawCommon(world, view, now) {
+    const { W, H } = world;
+    // scoring effects: expanding ring on the table + floating "+1"
     const liveFx = new Set();
     for (const fx of view.fx) {
       const age = (now - fx.t0) / 900;
@@ -670,7 +766,7 @@ export class Renderer {
       let ring = this.fxUsed.get(fx);
       if (!ring) {
         ring = this.fxPool.pop() || new THREE.Mesh(this.fxRing, new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false }));
-        ring.material.color.set(PILL_COLORS[fx.c].hex);
+        ring.material.color.set(fx.ring || (PILL_COLORS[fx.c] ? PILL_COLORS[fx.c].hex : '#ffffff'));
         this.scene.add(ring);
         this.fxUsed.set(fx, ring);
       }
@@ -678,7 +774,7 @@ export class Renderer {
       ring.scale.setScalar(8 + age * 40);
       ring.material.opacity = 1 - age;
       if (fx.color) {
-        const el = this.overlayItem(fx, 'plus', (d) => { d.textContent = '+1'; d.style.color = fx.color; });
+        const el = this.overlayItem(fx, 'plus', (d) => { d.textContent = fx.text || '+1'; d.style.color = fx.color; });
         el.style.opacity = String(1 - age);
         this.place(el, this.project(fx.x, fx.y, 30 + age * 60));
       }
