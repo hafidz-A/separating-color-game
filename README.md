@@ -18,6 +18,12 @@ Game santai 3D di browser: sortir pil warna-warni ke wadah yang warnanya sama, s
 
 Browser si pembuat room yang menjalankan permainan, jadi **tab host harus tetap terbuka**. Kalau host keluar, room-nya bubar.
 
+## Kalau teman tidak bisa masuk
+
+- **Host jangan meninggalkan halaman game.** Browser HP "membekukan" halaman yang ditinggal (misal pindah ke WhatsApp buat kirim link). Teman yang sedang mencoba masuk akan menunggu sampai ±45 detik, dan otomatis masuk begitu host balik ke halaman game.
+- **"Jaringan memblokir sambungan"**: jaringannya tidak bisa ditembus langsung (sering di data seluler atau Wi-Fi kantor/kampus). Coba salah satu pindah jaringan (Wi-Fi ↔ data). Kalau sering terjadi, isi server TURN sendiri di `js/config.js` (ada contohnya; paket gratis tersedia, misalnya di metered.ca).
+- **"Room tidak ditemukan"**: kodenya salah, atau room sudah ditutup.
+
 ## Chat
 
 - **Laptop**: chat ada di panel kanan. Tekan **Enter** untuk mulai ngetik.

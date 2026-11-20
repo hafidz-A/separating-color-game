@@ -398,6 +398,10 @@ const hostHandlers = {
     playersDirty = true;
   },
   warn(msg) { toast(msg); },
+  status(st) {
+    if (st === 'away') toast('Room sempat terputus, menyambung ulang…', 3000);
+    else toast('Room aktif lagi ✅ Teman bisa masuk sekarang', 3000);
+  },
 };
 
 function startSolo(level) {
@@ -439,6 +443,8 @@ async function startHost(level) {
   showGame();
   portraitHint();
   addChat('', '', `Room ${S.code} siap. Bagikan kodenya ke teman!`, true);
+  addChat('', '', 'Biarkan halaman ini tetap terbuka. Kalau kamu pindah aplikasi, teman baru bisa masuk setelah kamu balik ke sini.', true);
+  setTimeout(() => toast('Tetap di halaman ini ya, biar teman bisa masuk 🙌', 4500), 1200);
   history.replaceState(null, '', inviteLink());
   setBusy(false);
 }
@@ -583,7 +589,7 @@ async function joinRoom(code) {
   const net = new ClientNet(clientHandlers);
   S.net = net;
   try {
-    await net.connect(code);
+    await net.connect(code, (st) => { $('lobbyStatus').textContent = st; });
     net.send({ t: 'hello', name: cleanName($('nameInput').value) });
     setTimeout(() => {
       if (S.net === net && !S.world) backToLobby('Room tidak merespons. Coba lagi ya.');
@@ -848,7 +854,7 @@ $('btnCopy').addEventListener('click', async () => {
   const link = inviteLink();
   try {
     await navigator.clipboard.writeText(link);
-    toast('Link undangan disalin! Kirim ke teman 💌');
+    toast('Link disalin 💌 Habis kirim, langsung balik ke sini ya biar temanmu bisa masuk', 4500);
   } catch {
     toast(link, 6000);
   }

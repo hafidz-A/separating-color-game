@@ -15,11 +15,25 @@ export function cleanCode(s) {
   return String(s || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
 }
 
+// STUN finds a direct route between two browsers; TURN relays the game when
+// no direct route exists (common on mobile data). Extra TURN servers can be
+// added in js/config.js.
+function iceServers() {
+  const list = [
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+    { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
+  ];
+  const extra = window.PILAHPIL_TURN;
+  if (Array.isArray(extra)) for (const s of extra) if (s && s.urls) list.unshift(s);
+  return list;
+}
+
 function peerOptions() {
   // ?peerhost=…&peerport=…&peerpath=…&peersecure=0 points at a self-hosted
   // PeerServer; by default the public PeerJS cloud is used.
   const q = new URLSearchParams(location.search);
-  const o = { debug: 1 };
+  const o = { debug: 1, config: { iceServers: iceServers() } };
   if (q.get('peerhost')) {
     o.host = q.get('peerhost');
     o.port = +(q.get('peerport') || 443);
@@ -67,11 +81,26 @@ export class HostNet {
         conn.on('error', () => { if (this.conns.delete(conn)) this.h.close(conn); });
       });
       peer.on('call', (call) => { if (this.h.call) this.h.call(call); else call.close(); });
+      // Lost the signalling server (often because a phone put this tab to
+      // sleep): players already in keep playing, and we reconnect so new
+      // friends can still join.
+      const reconnect = () => {
+        if (peer.destroyed || !peer.disconnected) return;
+        try { peer.reconnect(); } catch { /* retried below */ }
+      };
+      let away = false;
       peer.on('disconnected', () => {
-        // Lost the signalling server: existing players keep playing, but
-        // reconnect so new friends can still join.
-        if (!peer.destroyed) setTimeout(() => { if (!peer.destroyed) peer.reconnect(); }, 1500);
+        if (!away && this.h.status) this.h.status('away');
+        away = true;
+        setTimeout(reconnect, 1000);
       });
+      peer.on('open', () => {
+        if (away && this.h.status) this.h.status('back');
+        away = false;
+      });
+      this.onVisible = () => { if (document.visibilityState === 'visible') reconnect(); };
+      document.addEventListener('visibilitychange', this.onVisible);
+      this.retryTimer = setInterval(reconnect, 5000);
       peer.on('error', (err) => {
         if (!opened) {
           peer.destroy();
@@ -94,6 +123,8 @@ export class HostNet {
   close() {
     if (this.peer) this.peer.destroy();
     this.conns.clear();
+    clearInterval(this.retryTimer);
+    if (this.onVisible) document.removeEventListener('visibilitychange', this.onVisible);
   }
 }
 
@@ -104,36 +135,89 @@ export class ClientNet {
     this.conn = null;
   }
 
-  connect(code) {
+  // Keeps knocking for up to ~45 s, so a host who briefly switched apps
+  // (e.g. to send the link on WhatsApp) can come back and let us in.
+  connect(code, onStatus = () => {}) {
     return new Promise((resolve, reject) => {
+      const deadline = Date.now() + 45000;
       let settled = false;
+      let attempt = null;
+      let tries = 0;
+      let notFound = false;
+      let iceFailed = false;
+      const peer = new window.Peer(peerOptions());
+      this.peer = peer;
       const fail = (msg) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
-        if (this.peer) this.peer.destroy();
+        clearTimeout(guard);
+        peer.destroy();
         reject(new Error(msg));
       };
-      const timer = setTimeout(() => fail('Tidak ada jawaban dari room. Pastikan host masih online.'), 15000);
-      const peer = new window.Peer(peerOptions());
-      this.peer = peer;
-      peer.on('open', () => {
+      const guard = setTimeout(() => fail('Server room tidak bisa dihubungi. Cek internet lalu coba lagi.'), 60000);
+      const giveUp = () => {
+        if (iceFailed) fail('Jaringan memblokir sambungan ke host. Coba salah satu pindah jaringan (Wi-Fi ↔ data seluler).');
+        else if (notFound) fail('Room tidak ditemukan. Cek kodenya, dan pastikan host masih membuka halaman game.');
+        else fail('Host belum menjawab. Minta host membuka halaman game (jangan ditinggal ke aplikasi lain), lalu coba lagi.');
+      };
+      const next = (delay) => {
+        if (settled) return;
+        if (Date.now() + delay > deadline) giveUp();
+        else setTimeout(knock, delay);
+      };
+      const knock = () => {
+        if (settled) return;
+        tries++;
+        onStatus(tries === 1 ? 'Menyambung ke room…' : `Menunggu host menjawab… (${tries})`);
         const conn = peer.connect(PREFIX + code, { reliable: true });
-        this.conn = conn;
+        const me = { conn, done: false };
+        attempt = me;
+        const retry = (delay) => {
+          if (me.done || settled) return;
+          me.done = true;
+          clearTimeout(t);
+          try { conn.close(); } catch { /* already closed */ }
+          next(delay);
+        };
+        me.retry = retry;
+        const t = setTimeout(() => retry(500), 9000);
         conn.on('open', () => {
-          if (settled) return;
+          if (me.done || settled) return;
+          me.done = true;
           settled = true;
-          clearTimeout(timer);
+          clearTimeout(t);
+          clearTimeout(guard);
+          this.conn = conn;
+          conn.on('data', (d) => this.h.data(d));
+          conn.on('close', () => this.h.close());
+          conn.on('error', () => this.h.close());
           resolve();
         });
-        conn.on('data', (d) => this.h.data(d));
-        conn.on('close', () => { if (settled) this.h.close(); });
-        conn.on('error', () => { if (settled) this.h.close(); });
-      });
+        conn.on('error', () => retry(1500));
+        // Notice early when the network refuses every route.
+        setTimeout(() => {
+          const pc = conn.peerConnection;
+          if (!pc) return;
+          pc.addEventListener('iceconnectionstatechange', () => {
+            if (pc.iceConnectionState === 'failed') { iceFailed = true; retry(1500); }
+          });
+        }, 0);
+      };
+      peer.on('open', knock);
       peer.on('call', (call) => { if (this.h.call) this.h.call(call); else call.close(); });
       peer.on('error', (err) => {
-        if (!settled) fail(errorText(err));
-        else if (this.h.warn && err.type !== 'peer-unavailable') this.h.warn(errorText(err));
+        if (settled) {
+          if (this.h.warn && err.type !== 'peer-unavailable') this.h.warn(errorText(err));
+          return;
+        }
+        if (err.type === 'peer-unavailable') {
+          // The host is not registered right now (wrong code, or their tab is asleep).
+          notFound = true;
+          onStatus('Room belum ketemu, menunggu host…');
+          if (attempt && attempt.retry) attempt.retry(2500);
+          return;
+        }
+        fail(errorText(err));
       });
     });
   }
