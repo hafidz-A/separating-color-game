@@ -24,6 +24,19 @@ Browser si pembuat room yang menjalankan permainan, jadi **tab host harus tetap 
 - **Bisa di satu Wi-Fi tapi tidak bisa beda jaringan** (atau muncul "Jaringan memblokir sambungan"): butuh relay (TURN). Daftar gratis di metered.ca → buat aplikasi → salin link *credentials API* → tempel di `js/config.js` pada `window.PILAHPIL_TURN_URL`.
 - **"Room tidak ditemukan"**: kodenya salah, atau room sudah ditutup.
 
+## Relay Cloudflare (biar bisa main beda jaringan)
+
+Relay (TURN) meneruskan data kalau dua HP tidak bisa tersambung langsung. Cloudflare memberi 1.000 GB/bulan gratis. Kunci relay-nya rahasia, jadi disimpan di Worker kecil (`cloudflare/turn-worker.js`) yang membagikan kredensial sementara (24 jam).
+
+1. **Buat kunci TURN**: dashboard Cloudflare → **Realtime** → **TURN Server** → *Create*. Simpan **Key ID** dan **API Token**-nya (jangan dibagikan).
+2. **Buat Worker**: **Workers & Pages** → *Create* → *Worker* → beri nama `pilahpil-turn` → *Deploy* → *Edit code* → hapus isinya, tempel isi `cloudflare/turn-worker.js` → *Deploy*.
+3. **Isi pengaturan Worker**: tab **Settings** → **Variables and Secrets** → *Add*:
+   - `TURN_KEY_ID` (Text) = Key ID
+   - `TURN_KEY_API_TOKEN` (**Secret**) = API Token
+   - lalu *Deploy*.
+4. **Tes**: buka `https://pilahpil-turn.<akunmu>.workers.dev` di browser → harus muncul `Forbidden` (normal, karena hanya web game yang boleh minta).
+5. Isi URL Worker itu di `js/config.js` pada `window.PILAHPIL_TURN_URL`, commit, tunggu GitHub Pages ter-update. Di game, **🔧 Cek koneksi** → baris *relay (TURN)* harus ✅.
+
 ## Chat
 
 - **Laptop**: chat ada di panel kanan. Tekan **Enter** untuk mulai ngetik.

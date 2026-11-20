@@ -48,7 +48,9 @@ export async function loadIce() {
       const res = await fetch(url, { signal: ctrl.signal });
       clearTimeout(t);
       const data = await res.json();
-      if (Array.isArray(data)) fetched = data.filter((x) => x && x.urls);
+      // Accepts a plain list (Metered, our Cloudflare Worker) or { iceServers: [...] }.
+      const list = Array.isArray(data) ? data : data && Array.isArray(data.iceServers) ? data.iceServers : [];
+      fetched = list.filter((x) => x && x.urls);
     } catch { /* relay list unavailable; use the defaults */ }
   }
   const base = iceServers();

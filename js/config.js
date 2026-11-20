@@ -1,7 +1,11 @@
 // Relay (TURN) settings. A relay lets players on different networks
 // (e.g. one on home Wi-Fi, one on mobile data) play together.
 //
-// Easiest: a free Metered account (https://www.metered.ca/stun-turn).
+// Option A – Cloudflare (1,000 GB/month free): deploy cloudflare/turn-worker.js
+// as a Worker (see README) and paste its URL here, e.g.
+// window.PILAHPIL_TURN_URL = 'https://pilahpil-turn.YOUR-NAME.workers.dev';
+//
+// Option B – a free Metered account (https://www.metered.ca/stun-turn).
 // After signing up, open the TURN Server page, copy the
 // "credentials API" link (it looks like the example below) and paste it here:
 //
