@@ -1,6 +1,6 @@
 # Pilah Pil 💊
 
-Game santai 3D di browser: sortir pil warna-warni ke wadah yang warnanya sama, sendirian atau **bareng sampai 10 orang**. Makin tinggi levelnya, mejanya makin luas dan makin susah.
+Game santai 3D di browser: sortir pil warna-warni ke wadah yang warnanya sama, sendirian, berdua sama pasangan, atau **bareng sampai 10 orang**. Makin tinggi levelnya, mejanya makin luas dan makin susah.
 
 ## Cara main
 
@@ -10,10 +10,10 @@ Game santai 3D di browser: sortir pil warna-warni ke wadah yang warnanya sama, s
 - **1–6** untuk emote, **Enter** untuk chat (di mode room).
 - Level selesai kalau semua pil sudah tersortir. Level berikutnya mulai otomatis.
 
-## Main bareng teman
+## Main bareng teman & pasangan
 
 1. Klik **Buat room**. Kamu dapat kode 4 huruf, misalnya `KQTM`.
-2. Klik **Salin link** lalu kirim ke teman, atau suruh mereka ketik kodenya di **Gabung**.
+2. Klik **Salin link** lalu kirim ke teman atau pasangan, atau suruh mereka ketik kodenya di **Gabung**.
 3. Semua orang menyortir di meja yang sama. Skor dihitung per orang, dan di akhir level ada daftar siapa yang paling banyak menyortir.
 
 Browser si pembuat room yang menjalankan permainan, jadi **tab host harus tetap terbuka**. Kalau host keluar, room-nya bubar.
