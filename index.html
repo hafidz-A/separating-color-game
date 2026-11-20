@@ -38,11 +38,12 @@
       <button id="btnCam" class="chip cam-btn" title="Nyalakan kamera (tanpa suara)" hidden>📷</button>
       <button id="btnFull" class="chip" title="Layar penuh" hidden>⛶</button>
       <button id="btnSound" class="chip" title="Suara">🔊</button>
-      <button id="btnSide" class="chip side-toggle" title="Pemain & chat">👥</button>
+      <button id="btnSide" class="chip side-toggle" title="Chat & pemain"><span id="sideIcon">💬</span><span id="unread" class="badge" hidden></span></button>
     </div>
   </header>
 
   <div id="cams" hidden></div>
+  <div id="feed" aria-hidden="true"></div>
 
   <aside id="side" hidden>
     <h3>Pemain <span id="playerCount"></span></h3>
@@ -50,8 +51,10 @@
     <div id="chatWrap">
       <h3>Chat</h3>
       <ul id="chatLog" aria-live="polite"></ul>
+      <div id="quick" class="quick"></div>
       <form id="chatForm" autocomplete="off">
-        <input id="chatInput" maxlength="80" placeholder="Ketik pesan… (Enter)">
+        <input id="chatInput" maxlength="100" placeholder="Ketik pesan…" enterkeyhint="send">
+        <button type="submit" class="send" title="Kirim">➤</button>
       </form>
     </div>
   </aside>

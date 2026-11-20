@@ -18,6 +18,14 @@ Game santai 3D di browser: sortir pil warna-warni ke wadah yang warnanya sama, s
 
 Browser si pembuat room yang menjalankan permainan, jadi **tab host harus tetap terbuka**. Kalau host keluar, room-nya bubar.
 
+## Chat
+
+- **Laptop**: chat ada di panel kanan. Tekan **Enter** untuk mulai ngetik.
+- **HP**: tombol **💬** di kanan atas. Ada angka merah kalau ada pesan belum dibaca, dan pesan baru muncul sebentar di layar walau chat ditutup.
+- **Pesan cepat** sekali tap: "Ayo! 💪", "Mantap 👍", "Bantuin dong 🙏", "Aku bagian kiri", "GG ✨", dll.
+- Pesan juga muncul sebagai balon di atas tangan pengirim, dan di samping kameranya kalau kamera nyala.
+- Yang baru gabung bisa lihat 30 pesan terakhir.
+
 ## Kamera (tanpa suara)
 
 Di dalam room, klik tombol 📷 untuk menyalakan kamera. Wajahmu muncul sebagai bulatan kecil dengan nama di layar semua pemain. Klik lagi untuk mematikan.

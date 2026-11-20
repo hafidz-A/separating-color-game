@@ -37,6 +37,8 @@ const S = {
   leaving: false,
   clearTimer: null,
   muted: store.get('muted', false),
+  chatHistory: [],
+  unread: 0,
   hasPointer: false,
 };
 
@@ -95,6 +97,7 @@ const sfx = {
     tone(520 + c * 70 + Math.random() * 40, 0.11);
   },
   nope() { tone(180, 0.12, 'triangle', 0.06); },
+  msg() { tone(880, 0.07, 'sine', 0.06); tone(1175, 0.09, 'sine', 0.06, 0.07); },
   clear() { [0, 4, 7, 12].forEach((s, i) => tone(523 * Math.pow(2, s / 12), 0.22, 'sine', 0.08, i * 0.1)); },
 };
 
@@ -117,7 +120,7 @@ function cleanName(s) {
 }
 
 function cleanChat(s) {
-  return String(s || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 80);
+  return String(s || '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 100);
 }
 
 function playerList() {
@@ -129,8 +132,9 @@ function freeColor() {
   return PLAYER_COLORS.find((c) => !used.has(c)) || PLAYER_COLORS[S.players.size % PLAYER_COLORS.length];
 }
 
-function addChat(name, color, text, sys = false) {
+function addChat(name, color, text, sys = false, mine = false) {
   const li = document.createElement('li');
+  if (mine) li.className = 'mine';
   if (sys) {
     li.className = 'sys';
     li.textContent = text;
@@ -200,6 +204,10 @@ function showGame() {
   $('btnReshuffle').hidden = S.mode === 'client';
   $('btnCam').hidden = !online;
   $('chatLog').textContent = '';
+  $('feed').textContent = '';
+  $('side').classList.remove('open');
+  $('sideIcon').textContent = online ? '💬' : '👥';
+  setUnread(0);
   playersDirty = true;
 }
 
@@ -346,7 +354,7 @@ const hostHandlers = {
       const p = { id, name: cleanName(msg.name), color: freeColor(), score: 0, lvl: 0, conn, peer: conn.peer, cam: false };
       S.players.set(id, p);
       S.world.tool(id);
-      conn.send({ t: 'welcome', id, code: S.code, players: playerList(), def: S.world.describe(), phase: S.phase });
+      conn.send({ t: 'welcome', id, code: S.code, players: playerList(), def: S.world.describe(), phase: S.phase, hist: S.chatHistory });
       S.net.broadcast({ t: 'players', list: playerList(), join: p.name }, conn);
       cams.sync();
       addChat('', '', `${p.name} bergabung 👋`, true);
@@ -424,6 +432,7 @@ async function startHost(level) {
   S.mode = 'host';
   S.myId = 0;
   S.nextId = 1;
+  S.chatHistory = [];
   S.players.clear();
   S.players.set(0, { id: 0, name: cleanName($('nameInput').value), color: PLAYER_COLORS[0], score: 0, lvl: 0, peer: net.peer.id, cam: false });
   hostNewLevel(level);
@@ -448,6 +457,11 @@ const clientHandlers = {
         if (!$('lobby').hidden) {
           showGame();
           portraitHint();
+          if (Array.isArray(msg.hist)) {
+            for (const h of msg.hist.slice(-30)) {
+              if (h && typeof h === 'object') addChat(cleanName(h.name), String(h.color).slice(0, 9), cleanChat(h.m));
+            }
+          }
           addChat('', '', `Masuk ke room ${S.code}. Selamat menyortir!`, true);
         }
         break;
@@ -596,12 +610,48 @@ function spawnEmote(pid, idx) {
   if (S.emotes.length > 40) S.emotes.shift();
 }
 
+const QUICK = ['Ayo! 💪', 'Mantap 👍', 'Bantuin dong 🙏', 'Aku bagian kiri', 'Kamu bagian kanan', 'Hampir! 🔥', 'Hehe 😆', 'GG ✨'];
+
+function chatOpen() {
+  return window.innerWidth > 900 || $('side').classList.contains('open');
+}
+
+function setUnread(n) {
+  S.unread = n;
+  $('unread').hidden = n <= 0;
+  $('unread').textContent = n > 9 ? '9+' : String(n);
+}
+
+// Short-lived message pills over the table, for phones with the chat closed.
+function pushFeed(p, m) {
+  const feed = $('feed');
+  const el = document.createElement('div');
+  el.className = 'feed-msg';
+  const b = document.createElement('b');
+  b.style.color = p.color;
+  b.textContent = p.name + ' ';
+  el.append(b, document.createTextNode(m));
+  feed.append(el);
+  while (feed.children.length > 3) feed.firstChild.remove();
+  setTimeout(() => el.classList.add('out'), 5500);
+  setTimeout(() => el.remove(), 6000);
+}
+
 function showChat(pid, m) {
   if (!m) return;
   const p = S.players.get(pid);
   if (!p) return;
-  addChat(p.name, p.color, m);
+  addChat(p.name, p.color, m, false, pid === S.myId);
   S.bubbles.set(pid, { text: m, until: performance.now() + 4500 });
+  cams.say(pid, m);
+  if (S.mode === 'host') {
+    S.chatHistory.push({ name: p.name, color: p.color, m });
+    if (S.chatHistory.length > 30) S.chatHistory.shift();
+  }
+  if (pid !== S.myId) {
+    sfx.msg();
+    if (!chatOpen()) { setUnread(S.unread + 1); pushFeed(p, m); }
+  }
 }
 
 function sendEmote(idx) {
@@ -773,7 +823,22 @@ $('chatForm').addEventListener('submit', (e) => {
 });
 
 $('btnLeave').addEventListener('click', () => backToLobby(''));
-$('btnSide').addEventListener('click', () => $('side').classList.toggle('open'));
+$('btnSide').addEventListener('click', () => {
+  const open = $('side').classList.toggle('open');
+  if (open) {
+    setUnread(0);
+    $('feed').textContent = '';
+    const log = $('chatLog');
+    log.scrollTop = log.scrollHeight;
+  }
+});
+QUICK.forEach((q) => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.textContent = q;
+  b.addEventListener('click', () => sendChat(q));
+  $('quick').append(b);
+});
 $('btnReshuffle').addEventListener('click', () => {
   if (S.mode === 'client' || !S.world || S.phase !== 'play') return;
   hostNewLevel(S.world.n);

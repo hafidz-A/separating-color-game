@@ -184,6 +184,22 @@ export class CamHub {
     call.answer();
   }
 
+  // Show a chat message next to the sender's webcam for a few seconds.
+  say(pid, text) {
+    let key = null;
+    if (pid === this.myId()) key = 'me';
+    else {
+      const p = this.players().get(pid);
+      if (p && p.peer) key = p.peer;
+    }
+    const el = key && this.tiles.get(key);
+    if (!el) return;
+    el._say.textContent = text;
+    el._say.hidden = false;
+    clearTimeout(el._sayT);
+    el._sayT = setTimeout(() => { el._say.hidden = true; }, 4500);
+  }
+
   render() {
     const want = new Map();
     const me = this.players().get(this.myId());
@@ -206,9 +222,13 @@ export class CamHub {
         v.playsInline = true;
         v.setAttribute('playsinline', '');
         const name = document.createElement('span');
-        el.append(v, name);
+        const say = document.createElement('div');
+        say.className = 'say';
+        say.hidden = true;
+        el.append(v, name, say);
         el._v = v;
         el._n = name;
+        el._say = say;
         this.box.append(el);
         this.tiles.set(key, el);
       }
