@@ -2,16 +2,16 @@
 // host can describe a level to everyone in a single message.
 
 export const PILL_COLORS = [
-  { name: 'Pink', hex: '#ff8fb8', deep: '#d4588a' },
-  { name: 'Mint', hex: '#7ee6b8', deep: '#3aa97c' },
-  { name: 'Kuning', hex: '#ffd76a', deep: '#c99a1e' },
-  { name: 'Lavender', hex: '#bba4ff', deep: '#7c62d6' },
-  { name: 'Biru', hex: '#78c6ff', deep: '#3a8dcc' },
-  { name: 'Peach', hex: '#ffac7d', deep: '#d06f3a' },
-  { name: 'Putih', hex: '#f4f1ea', deep: '#a9a49a' },
+  { name: 'Pink', hex: '#ff86c4', deep: '#d4588a' },
+  { name: 'Mint', hex: '#62f0bd', deep: '#2fae80' },
+  { name: 'Kuning', hex: '#ffdf4d', deep: '#c99a1e' },
+  { name: 'Biru', hex: '#5fc4ff', deep: '#2f86c6' },
+  { name: 'Oranye', hex: '#ff9a4d', deep: '#cc6522' },
+  { name: 'Putih', hex: '#fffaf1', deep: '#b8b0a2' },
+  { name: 'Merah', hex: '#ff5d6e', deep: '#c22f42' },
 ];
 
-export const PILL_R = 10;
+export const PILL_R = 13;
 
 export function mulberry32(seed) {
   let a = seed >>> 0;
@@ -74,7 +74,8 @@ export function makeLevel(n, seed) {
   const moving = n >= 6;
   const trays = colorOrder.map((c, i) => {
     const s = slots[order[i]];
-    const tray = { c, x: Math.round(s.x), y: Math.round(s.y), w: s.w, h: s.h, count: 0 };
+    // Alternate capsules and round tablets so every level mixes both.
+    const tray = { c, shape: i % 2, x: Math.round(s.x), y: Math.round(s.y), w: s.w, h: s.h, count: 0 };
     if (moving) {
       tray.move = {
         axis: s.axis,
@@ -118,6 +119,7 @@ export function makeLevel(n, seed) {
   let id = 0;
   const placed = [];
   const colorsList = [];
+  const shapeOf = new Map(trays.map((t) => [t.c, t.shape]));
   for (const t of trays) for (let i = 0; i < perColor; i++) colorsList.push(t.c);
   shuffle(colorsList, rng);
   for (const c of colorsList) {
@@ -135,7 +137,7 @@ export function makeLevel(n, seed) {
     x = Math.max(TS + 20, Math.min(W - TS - 20, x));
     y = Math.max(TS + 20, Math.min(H - TS - 20, y));
     placed.push({ x, y });
-    pills.push([id++, c, Math.round(x), Math.round(y), c % 2, Math.round(rng() * 6283) / 1000]);
+    pills.push([id++, c, Math.round(x), Math.round(y), shapeOf.get(c), Math.round(rng() * 6283) / 1000]);
   }
 
   return {

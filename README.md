@@ -1,6 +1,6 @@
 # Pilah Pil 💊
 
-Game santai di browser: sortir pil warna-warni ke wadah yang warnanya sama, sendirian atau **bareng sampai 10 orang**. Makin tinggi levelnya, mejanya makin luas dan makin susah.
+Game santai 3D di browser: sortir pil warna-warni ke wadah yang warnanya sama, sendirian atau **bareng sampai 10 orang**. Makin tinggi levelnya, mejanya makin luas dan makin susah.
 
 ## Cara main
 
@@ -23,7 +23,7 @@ Browser si pembuat room yang menjalankan permainan, jadi **tab host harus tetap 
 | Level | Yang berubah |
 |---|---|
 | 1–2 | 2 warna, meja kecil |
-| 3+ | Muncul palang penghalang; pil mentok, tapi spatula bisa lewat di atasnya |
+| 3+ | Muncul palang permen; pil mentok, tapi spatula bisa lewat di atasnya |
 | 4+ | Pil tersebar di beberapa tumpukan |
 | 6+ | Wadahnya mulai bergeser pelan-pelan |
 | tiap level | +1 warna tiap 2 level (maks 7), lebih banyak pil (sampai 210), meja makin luas, dan lantainya makin licin |
@@ -40,7 +40,7 @@ Cuma file statis, tidak perlu build dan tidak perlu server game sendiri.
 
 - `js/levels.js`: generator level (warna, ukuran meja, wadah, palang, posisi pil)
 - `js/sim.js`: fisika pil, spatula, jepit, dan pengecekan wadah
-- `js/render.js`: gambar canvas
+- `js/render3d.js`: tampilan 3D pakai [three.js](https://threejs.org) (MIT, di-vendor di `js/vendor/`): pil kapsul & tablet glossy, wadah, palang permen, spatula dengan hiasan (hati, bintang, bunga, awan, permata) per pemain
 - `js/net.js`: multiplayer peer-to-peer lewat WebRTC ([PeerJS](https://peerjs.com), MIT, di-vendor di `js/vendor/`)
 - `js/main.js`: lobby, input, loop game, sinkronisasi host ↔ tamu
 

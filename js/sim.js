@@ -2,9 +2,9 @@
 // The host steps it; guests keep a mirror that is fed by snapshots.
 import { PILL_R } from './levels.js';
 
-export const SPATULA_HALF = 78;
-export const SPATULA_THICK = 7;
-export const GRAB_R = 40;
+export const SPATULA_HALF = 94;
+export const SPATULA_THICK = 8.5;
+export const GRAB_R = 50;
 export const GRAB_CAP = 6;
 const SUBSTEPS = 3;
 
@@ -40,7 +40,7 @@ export class World {
   describe() {
     return {
       n: this.n, W: this.W, H: this.H, friction: this.friction, obs: this.obs,
-      trays: this.trays.map((t) => ({ c: t.c, x: t.bx, y: t.by, w: t.w, h: t.h, count: t.count, move: t.move })),
+      trays: this.trays.map((t) => ({ c: t.c, shape: t.shape, x: t.bx, y: t.by, w: t.w, h: t.h, count: t.count, move: t.move })),
       pills: this.pills.filter((p) => p.alive).map((p) => [p.id, p.c, Math.round(p.x), Math.round(p.y), p.shape, +p.a.toFixed(3)]),
       total: this.total, sorted: this.sorted, time: this.time,
     };

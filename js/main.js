@@ -1,6 +1,6 @@
 import { makeLevel, PILL_COLORS } from './levels.js';
 import { World } from './sim.js';
-import { Renderer } from './render.js';
+import { Renderer } from './render3d.js';
 import { HostNet, ClientNet, makeCode, cleanCode } from './net.js';
 
 const $ = (id) => document.getElementById(id);
@@ -39,7 +39,7 @@ const S = {
   hasPointer: false,
 };
 
-const renderer = new Renderer($('cv'));
+const renderer = new Renderer($('cv'), $('ov'));
 
 // ---------------- sound ----------------
 let audio = null;
@@ -812,7 +812,7 @@ function frame(now) {
       else if (S.mode === 'client') src = S.remoteTools.get(p.id);
       else src = w.tools.get(p.id);
       if (!src || src.x == null || src.seen === 0) continue;
-      tools.push({ x: src.x, y: src.y, a: src.a, kind: src.kind, down: src.down, color: p.color, name: p.name, me: p.id === S.myId, bubble: S.bubbles.get(p.id) });
+      tools.push({ pid: p.id, x: src.x, y: src.y, a: src.a, kind: src.kind, down: src.down, color: p.color, name: p.name, me: p.id === S.myId, bubble: S.bubbles.get(p.id) });
     }
     // Draw my own hand last so it is always on top.
     tools.sort((a, b) => (a.me ? 1 : 0) - (b.me ? 1 : 0));
