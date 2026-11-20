@@ -50,7 +50,7 @@ function errorText(err) {
     case 'network':
     case 'server-error':
     case 'socket-error':
-    case 'socket-closed': return 'Gagal tersambung ke server room. Coba lagi sebentar.';
+    case 'socket-closed': return 'Gagal tersambung ke server room. Tekan "Cek koneksi" di bawah.';
     case 'browser-incompatible': return 'Browser ini belum mendukung WebRTC.';
     default: return 'Koneksi bermasalah: ' + ((err && (err.type || err.message)) || 'unknown');
   }
@@ -68,7 +68,14 @@ export class HostNet {
     return new Promise((resolve, reject) => {
       const peer = new window.Peer(PREFIX + code, peerOptions());
       let opened = false;
+      const giveUp = setTimeout(() => {
+        if (opened) return;
+        peer.destroy();
+        clearInterval(this.retryTimer);
+        reject(new Error('Server room tidak bisa dihubungi dari jaringan ini. Tekan "Cek koneksi" di bawah.'));
+      }, 15000);
       peer.on('open', () => {
+        clearTimeout(giveUp);
         opened = true;
         this.peer = peer;
         this.code = code;
@@ -103,6 +110,8 @@ export class HostNet {
       this.retryTimer = setInterval(reconnect, 5000);
       peer.on('error', (err) => {
         if (!opened) {
+          clearTimeout(giveUp);
+          clearInterval(this.retryTimer);
           peer.destroy();
           if (err.type === 'unavailable-id' && attempt < 4) {
             this.start(makeCode(), attempt + 1).then(resolve, reject);
@@ -229,4 +238,43 @@ export class ClientNet {
   close() {
     if (this.peer) this.peer.destroy();
   }
+}
+
+// Step-by-step connection check, shown in the lobby, so a player can see
+// which part fails on their own phone or network.
+export async function diagnose(onStep) {
+  const out = { webrtc: false, server: false, direct: false, relay: false };
+  out.webrtc = typeof window.RTCPeerConnection === 'function' && !!window.Peer;
+  onStep({ ...out, running: 'server' });
+  if (out.webrtc) {
+    out.server = await new Promise((resolve) => {
+      let p;
+      try { p = new window.Peer(peerOptions()); } catch { resolve(false); return; }
+      const t = setTimeout(() => { p.destroy(); resolve(false); }, 10000);
+      p.on('open', () => { clearTimeout(t); p.destroy(); resolve(true); });
+      p.on('error', () => { clearTimeout(t); p.destroy(); resolve(false); });
+    });
+  }
+  onStep({ ...out, running: 'ice' });
+  if (out.webrtc) {
+    try {
+      const pc = new RTCPeerConnection({ iceServers: iceServers() });
+      pc.createDataChannel('check');
+      const types = new Set();
+      pc.onicecandidate = (e) => {
+        const m = e.candidate && / typ (\w+)/.exec(e.candidate.candidate);
+        if (m) types.add(m[1]);
+      };
+      await pc.setLocalDescription(await pc.createOffer());
+      await new Promise((resolve) => {
+        const t = setTimeout(resolve, 8000);
+        pc.onicegatheringstatechange = () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); resolve(); } };
+      });
+      pc.close();
+      out.direct = types.has('srflx');
+      out.relay = types.has('relay');
+    } catch { /* leave as failed */ }
+  }
+  onStep({ ...out, running: null });
+  return out;
 }

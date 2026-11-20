@@ -1,7 +1,7 @@
 import { makeLevel, PILL_COLORS } from './levels.js';
 import { World } from './sim.js';
 import { Renderer } from './render3d.js';
-import { HostNet, ClientNet, makeCode, cleanCode } from './net.js';
+import { HostNet, ClientNet, makeCode, cleanCode, diagnose } from './net.js';
 import { CamHub } from './cam.js';
 
 const $ = (id) => document.getElementById(id);
@@ -893,6 +893,47 @@ $('btnSolo').addEventListener('click', () => { ac(); ensureName(); startSolo(cho
 $('btnHost').addEventListener('click', () => { ac(); ensureName(); startHost(chosenLevel()); });
 $('joinForm').addEventListener('submit', (e) => { e.preventDefault(); ac(); ensureName(); joinRoom($('codeInput').value); });
 $('codeInput').addEventListener('input', () => { $('codeInput').value = cleanCode($('codeInput').value); });
+
+// ---------------- connection check ----------------
+async function runCheck() {
+  const list = $('checkList');
+  list.hidden = false;
+  $('btnCheck').disabled = true;
+  const row = (ok, running, text) => {
+    const li = document.createElement('li');
+    const icon = document.createElement('span');
+    icon.textContent = running ? '⏳' : ok ? '✅' : '❌';
+    const t = document.createElement('span');
+    t.textContent = text;
+    li.append(icon, t);
+    return li;
+  };
+  const draw = (r) => {
+    list.textContent = '';
+    list.append(
+      row(r.webrtc, false, 'Browser mendukung main bareng (WebRTC)'),
+      row(r.server, r.running === 'server', 'Bisa menghubungi server room'),
+      row(r.direct, r.running === 'server' || r.running === 'ice', 'Jalur langsung antar HP (STUN)'),
+      row(r.relay, r.running === 'server' || r.running === 'ice', 'Jalur cadangan / relay (TURN)'),
+    );
+    if (!r.running) {
+      const tip = document.createElement('li');
+      const sp = document.createElement('span');
+      sp.className = 'tip';
+      if (!r.webrtc) sp.textContent = 'Browser ini tidak mendukung. Coba buka di Chrome atau Safari terbaru (bukan browser bawaan aplikasi).';
+      else if (!r.server) sp.textContent = 'Jaringan ini tidak bisa menghubungi server room. Coba ganti Wi-Fi ↔ data seluler, matikan VPN / DNS khusus, lalu cek lagi.';
+      else if (!r.direct && !r.relay) sp.textContent = 'Jaringan ini memblokir sambungan antar HP. Coba ganti jaringan.';
+      else if (!r.relay) sp.textContent = 'Server room OK. Relay tidak tersedia, jadi kalau dua-duanya pakai data seluler mungkin susah tersambung.';
+      else sp.textContent = 'Semua aman 👍';
+      sp.textContent += ' Kirim screenshot ini kalau masih bermasalah.';
+      tip.append(sp);
+      list.append(tip);
+    }
+  };
+  await diagnose(draw);
+  $('btnCheck').disabled = false;
+}
+$('btnCheck').addEventListener('click', runCheck);
 
 const roomParam = cleanCode(new URLSearchParams(location.search).get('room'));
 if (roomParam) {

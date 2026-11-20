@@ -280,6 +280,11 @@ button.chip:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--card-
 .divider { display: flex; align-items: center; gap: 10px; color: var(--ink-soft); font-size: 13px; margin: 20px 0 12px; }
 .divider::before, .divider::after { content: ''; flex: 1; height: 2px; border-radius: 2px; background: var(--card-edge); }
 .status { min-height: 1.3em; color: var(--pink-deep); font-size: 14px; margin: 12px 0 0; font-weight: 500; }
+.linkish { background: none; border: 0; padding: 4px 0; margin-top: 4px; color: var(--ink-soft); font-size: 13px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.checks { list-style: none; margin: 8px 0 0; padding: 10px 12px; background: #fff; border-radius: 14px; box-shadow: 0 2px 0 var(--card-edge); font-size: 14px; line-height: 1.45; }
+.checks li { display: flex; gap: 8px; align-items: flex-start; }
+.checks li + li { margin-top: 4px; }
+.checks .tip { color: var(--ink-soft); font-size: 13px; display: block; margin-top: 6px; }
 .how { margin-top: 10px; color: var(--ink-soft); font-size: 14px; }
 .how summary { cursor: pointer; color: var(--ink); font-weight: 600; }
 .how ul { padding-left: 18px; line-height: 1.5; }
