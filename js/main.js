@@ -916,14 +916,24 @@ async function runCheck() {
       row(r.direct, r.running === 'server' || r.running === 'ice', 'Jalur langsung antar HP (STUN)'),
       row(r.relay, r.running === 'server' || r.running === 'ice', 'Jalur cadangan / relay (TURN)'),
     );
+    if (r.relayInfo && r.relayInfo.configured) {
+      list.append(row(r.relayInfo.ok, false, 'Tiket relay dari Worker: ' + (r.relayInfo.detail || '-')));
+    }
     if (!r.running) {
       const tip = document.createElement('li');
       const sp = document.createElement('span');
       sp.className = 'tip';
       if (!r.webrtc) sp.textContent = 'Browser ini tidak mendukung. Coba buka di Chrome atau Safari terbaru (bukan browser bawaan aplikasi).';
       else if (!r.server) sp.textContent = 'Jaringan ini tidak bisa menghubungi server room. Coba ganti Wi-Fi ↔ data seluler, matikan VPN / DNS khusus, lalu cek lagi.';
+      else if (r.relayInfo && r.relayInfo.configured && !r.relayInfo.ok) {
+        const d = r.relayInfo.detail || '';
+        sp.textContent = /HTTP 500/.test(d) ? 'Worker: variabel TURN_KEY_ID / TURN_KEY_API_TOKEN belum terisi, atau belum di-Deploy setelah diisi.'
+          : /HTTP 502/.test(d) ? 'Worker: Cloudflare menolak kuncinya. Pastikan TURN_KEY_ID = Key ID dan TURN_KEY_API_TOKEN = API Token dari halaman Realtime → TURN Server (bukan API token akun).'
+          : /HTTP 403/.test(d) ? 'Worker menolak situs ini. Cek ALLOWED_ORIGINS di Worker (harus https://hafidz-a.github.io).'
+          : 'Worker relay belum memberi tiket. Lihat pesan di baris "Tiket relay dari Worker".';
+      }
       else if (!r.direct && !r.relay) sp.textContent = 'Jaringan ini memblokir sambungan antar HP. Coba ganti jaringan.';
-      else if (!r.relay) sp.textContent = 'Server room OK. Relay tidak tersedia, jadi kalau dua-duanya pakai data seluler mungkin susah tersambung.';
+      else if (!r.relay) sp.textContent = 'Tiket relay ada, tapi server relay tidak bisa dihubungi dari jaringan ini. Coba jaringan lain.';
       else sp.textContent = 'Semua aman 👍';
       sp.textContent += ' Kirim screenshot ini kalau masih bermasalah.';
       tip.append(sp);

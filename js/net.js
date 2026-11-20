@@ -37,21 +37,38 @@ function iceServers() {
 
 // Fetch relay (TURN) credentials once, e.g. from Metered's credentials API
 // (window.PILAHPIL_TURN_URL in js/config.js). Falls back to the built-in list.
+// What happened when asking the relay link for credentials (shown by "Cek koneksi").
+export const relayInfo = { configured: false, ok: false, detail: '' };
+
 export async function loadIce() {
   if (iceList) return iceList;
   const url = window.PILAHPIL_TURN_URL;
   let fetched = [];
   if (typeof url === 'string' && /^https:\/\//.test(url)) {
+    relayInfo.configured = true;
     try {
       const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 5000);
-      const res = await fetch(url, { signal: ctrl.signal });
+      const t = setTimeout(() => ctrl.abort(), 6000);
+      const res = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
       clearTimeout(t);
-      const data = await res.json();
-      // Accepts a plain list (Metered, our Cloudflare Worker) or { iceServers: [...] }.
-      const list = Array.isArray(data) ? data : data && Array.isArray(data.iceServers) ? data.iceServers : [];
-      fetched = list.filter((x) => x && x.urls);
-    } catch { /* relay list unavailable; use the defaults */ }
+      const text = await res.text();
+      if (!res.ok) {
+        relayInfo.detail = `HTTP ${res.status}: ${text.slice(0, 120)}`;
+      } else {
+        let data = null;
+        try { data = JSON.parse(text); } catch { /* not JSON */ }
+        // Accepts a plain list (Metered, our Cloudflare Worker) or { iceServers: [...] }.
+        const list = Array.isArray(data) ? data : data && Array.isArray(data.iceServers) ? data.iceServers : [];
+        fetched = list.filter((x) => x && x.urls);
+        const turns = fetched.filter((x) => [].concat(x.urls).some((u) => /^turns?:/.test(u)));
+        relayInfo.ok = turns.length > 0;
+        relayInfo.detail = relayInfo.ok ? `${turns.length} server relay diterima` : `Jawaban tanpa server relay: ${text.slice(0, 120)}`;
+      }
+    } catch (e) {
+      relayInfo.detail = e && e.name === 'AbortError'
+        ? 'Worker tidak menjawab (timeout)'
+        : 'Worker tidak bisa dihubungi atau diblokir (CORS / alamat salah)';
+    }
   }
   const base = iceServers();
   iceList = fetched.length ? [...base.filter((x) => !String(x.urls).includes('peerjs.com')), ...fetched] : base;
@@ -275,7 +292,10 @@ export class ClientNet {
 // which part fails on their own phone or network.
 export async function diagnose(onStep) {
   const out = { webrtc: false, server: false, direct: false, relay: false };
+  iceList = null; // ask the relay link again, fresh
+  relayInfo.configured = false; relayInfo.ok = false; relayInfo.detail = '';
   await loadIce();
+  out.relayInfo = { ...relayInfo };
   out.webrtc = typeof window.RTCPeerConnection === 'function' && !!window.Peer;
   onStep({ ...out, running: 'server' });
   if (out.webrtc) {
