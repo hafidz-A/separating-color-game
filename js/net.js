@@ -18,15 +18,42 @@ export function cleanCode(s) {
 // STUN finds a direct route between two browsers; TURN relays the game when
 // no direct route exists (common on mobile data). Extra TURN servers can be
 // added in js/config.js.
+let iceList = null;
+
 function iceServers() {
+  if (iceList) return iceList;
   const list = [
     { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
     { urls: 'stun:stun.cloudflare.com:3478' },
-    { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
   ];
   const extra = window.PILAHPIL_TURN;
-  if (Array.isArray(extra)) for (const s of extra) if (s && s.urls) list.unshift(s);
+  if (Array.isArray(extra)) for (const s of extra) if (s && s.urls) list.push(s);
+  // The free PeerJS relay is a last resort only when no own relay is set.
+  if (list.length <= 2) {
+    list.push({ urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' });
+  }
   return list;
+}
+
+// Fetch relay (TURN) credentials once, e.g. from Metered's credentials API
+// (window.PILAHPIL_TURN_URL in js/config.js). Falls back to the built-in list.
+export async function loadIce() {
+  if (iceList) return iceList;
+  const url = window.PILAHPIL_TURN_URL;
+  let fetched = [];
+  if (typeof url === 'string' && /^https:\/\//.test(url)) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 5000);
+      const res = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(t);
+      const data = await res.json();
+      if (Array.isArray(data)) fetched = data.filter((x) => x && x.urls);
+    } catch { /* relay list unavailable; use the defaults */ }
+  }
+  const base = iceServers();
+  iceList = fetched.length ? [...base.filter((x) => !String(x.urls).includes('peerjs.com')), ...fetched] : base;
+  return iceList;
 }
 
 function peerOptions() {
@@ -64,7 +91,8 @@ export class HostNet {
     this.peer = null;
   }
 
-  start(code, attempt = 0) {
+  async start(code, attempt = 0) {
+    await loadIce();
     return new Promise((resolve, reject) => {
       const peer = new window.Peer(PREFIX + code, peerOptions());
       let opened = false;
@@ -146,7 +174,8 @@ export class ClientNet {
 
   // Keeps knocking for up to ~45 s, so a host who briefly switched apps
   // (e.g. to send the link on WhatsApp) can come back and let us in.
-  connect(code, onStatus = () => {}) {
+  async connect(code, onStatus = () => {}) {
+    await loadIce();
     return new Promise((resolve, reject) => {
       const deadline = Date.now() + 45000;
       let settled = false;
@@ -244,6 +273,7 @@ export class ClientNet {
 // which part fails on their own phone or network.
 export async function diagnose(onStep) {
   const out = { webrtc: false, server: false, direct: false, relay: false };
+  await loadIce();
   out.webrtc = typeof window.RTCPeerConnection === 'function' && !!window.Peer;
   onStep({ ...out, running: 'server' });
   if (out.webrtc) {
