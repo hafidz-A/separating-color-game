@@ -202,7 +202,9 @@ export class Renderer {
   constructor(canvas, overlay) {
     this.canvas = canvas;
     this.ov = overlay;
-    this.gl = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    // Phones and tablets get a lighter setup so they stay smooth.
+    this.light = matchMedia('(pointer: coarse)').matches || Math.min(screen.width, screen.height) < 600;
+    this.gl = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
     this.gl.shadowMap.enabled = true;
     this.gl.shadowMap.type = THREE.PCFSoftShadowMap;
     this.scene = new THREE.Scene();
@@ -216,7 +218,7 @@ export class Renderer {
     this.scene.add(new THREE.HemisphereLight('#fff4fb', '#a99cff', 1.6));
     const sun = new THREE.DirectionalLight('#fff6ec', 2.4);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.mapSize.set(this.light ? 1024 : 2048, this.light ? 1024 : 2048);
     sun.shadow.bias = -0.0004;
     sun.shadow.normalBias = 0.6;
     sun.shadow.radius = 4;
@@ -286,7 +288,7 @@ export class Renderer {
     const w = window.innerWidth, h = window.innerHeight;
     this.cw = w;
     this.ch = h;
-    this.gl.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.gl.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.light ? 1.5 : 2));
     this.gl.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -317,8 +319,15 @@ export class Renderer {
       const bw = maxx - minx, bh = maxy - miny;
       D *= Math.max(bw / rect.w, bh / rect.h);
       if (shift) {
-        tx += ((minx + maxx) / 2 - (rect.x + rect.w / 2)) * (W + 2 * m) / bw;
-        tz += ((miny + maxy) / 2 - (rect.y + rect.h / 2)) * (H + 2 * m) / bh * 0.8;
+        // Screen-right and screen-down directions on the table for this azimuth.
+        const rx = Math.cos(az), rz = -Math.sin(az);
+        const dx = Math.sin(az), dz = Math.cos(az);
+        const spanR = Math.abs(rx) * (W + 2 * m) + Math.abs(rz) * (H + 2 * m);
+        const spanD = Math.abs(dx) * (W + 2 * m) + Math.abs(dz) * (H + 2 * m);
+        const offR = ((minx + maxx) / 2 - (rect.x + rect.w / 2)) * spanR / bw;
+        const offD = ((miny + maxy) / 2 - (rect.y + rect.h / 2)) * spanD / bh * 0.8;
+        tx += rx * offR + dx * offD;
+        tz += rz * offR + dz * offD;
       }
     }
     cam.position.set(tx + dir.x * D, dir.y * D, tz + dir.z * D);
@@ -477,7 +486,7 @@ export class Renderer {
     o.sweep.visible = !grab;
     o.ring.visible = o.prongL.visible = o.prongR.visible = grab;
     const base = new THREE.Vector3(x, (grab ? 10 : SPATULA_THICK) + lift, z);
-    const top = base.clone().add(HANDLE);
+    const top = base.clone().add(this.handle || HANDLE);
     if (grab) {
       top.y += 22;
       o.ring.position.set(x, 2 + lift * 0.3, z);
@@ -547,7 +556,14 @@ export class Renderer {
       const key = `${W}x${H}|${this.cw}x${this.ch}|${r.top},${r.right},${r.bottom},${r.left}`;
       if (key !== this.fitKey) {
         this.fitKey = key;
-        this.fitCamera(W, H, { x: r.left, y: r.top, w: this.cw - r.left - r.right, h: this.ch - r.top - r.bottom }, 0, true);
+        const rect = { x: r.left, y: r.top, w: this.cw - r.left - r.right, h: this.ch - r.top - r.bottom };
+        // On a tall (portrait) screen, look along the table so its long side runs up the screen.
+        const kH = 0.8; // the tilted camera squashes depth a little
+        const flat = Math.min(rect.w / W, rect.h / (H * kH));
+        const turned = Math.min(rect.w / H, rect.h / (W * kH));
+        this.az = turned > flat * 1.05 ? -Math.PI / 2 : 0;
+        this.handle = HANDLE.clone().applyAxisAngle(UP, this.az);
+        this.fitCamera(W, H, rect, this.az, true);
       }
     }
 

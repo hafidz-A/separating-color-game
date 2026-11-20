@@ -2,6 +2,7 @@ import { makeLevel, PILL_COLORS } from './levels.js';
 import { World } from './sim.js';
 import { Renderer } from './render3d.js';
 import { HostNet, ClientNet, makeCode, cleanCode } from './net.js';
+import { CamHub } from './cam.js';
 
 const $ = (id) => document.getElementById(id);
 const PLAYER_COLORS = ['#ff6fa3', '#4fd2ff', '#ffcb47', '#86ee8a', '#c08bff', '#ff9a5c', '#5af0d2', '#ff6be0', '#a7b6ff', '#f2f2f2'];
@@ -40,6 +41,25 @@ const S = {
 };
 
 const renderer = new Renderer($('cv'), $('ov'));
+
+const cams = new CamHub({
+  peer: () => (S.net ? S.net.peer : null),
+  players: () => S.players,
+  myId: () => S.myId,
+  toast: (m) => toast(m, 3500),
+  onLayout: () => {},
+  onState(on) {
+    $('btnCam').classList.toggle('on', on);
+    $('btnCam').title = on ? 'Matikan kamera' : 'Nyalakan kamera (tanpa suara)';
+    if (!S.mode || S.mode === 'solo') return;
+    if (S.mode === 'client') S.net.send({ t: 'cam', on });
+    else {
+      const me = S.players.get(S.myId);
+      if (me) me.cam = on;
+      S.net.broadcast({ t: 'players', list: playerList() });
+    }
+  },
+});
 
 // ---------------- sound ----------------
 let audio = null;
@@ -101,7 +121,7 @@ function cleanChat(s) {
 }
 
 function playerList() {
-  return [...S.players.values()].map((p) => ({ id: p.id, name: p.name, color: p.color, score: p.score, lvl: p.lvl }));
+  return [...S.players.values()].map((p) => ({ id: p.id, name: p.name, color: p.color, score: p.score, lvl: p.lvl, peer: p.peer || '', cam: !!p.cam }));
 }
 
 function freeColor() {
@@ -178,9 +198,8 @@ function showGame() {
   $('roomCode').textContent = S.code || '';
   $('chatWrap').hidden = !online;
   $('btnReshuffle').hidden = S.mode === 'client';
+  $('btnCam').hidden = !online;
   $('chatLog').textContent = '';
-  const wide = window.innerWidth > 900;
-  renderer.inset = { top: wide ? 70 : 60, right: wide ? 268 : 12, bottom: wide ? 78 : 100, left: wide ? 16 : 10 };
   playersDirty = true;
 }
 
@@ -190,6 +209,7 @@ function backToLobby(msg) {
   S.net = null;
   S.mode = null;
   S.world = null;
+  cams.reset();
   S.players.clear();
   S.remoteTools.clear();
   clearTimeout(S.clearTimer);
@@ -323,11 +343,12 @@ const hostHandlers = {
       if (conn.pid != null || S.players.size >= MAX_PLAYERS) return;
       const id = S.nextId++;
       conn.pid = id;
-      const p = { id, name: cleanName(msg.name), color: freeColor(), score: 0, lvl: 0, conn };
+      const p = { id, name: cleanName(msg.name), color: freeColor(), score: 0, lvl: 0, conn, peer: conn.peer, cam: false };
       S.players.set(id, p);
       S.world.tool(id);
       conn.send({ t: 'welcome', id, code: S.code, players: playerList(), def: S.world.describe(), phase: S.phase });
       S.net.broadcast({ t: 'players', list: playerList(), join: p.name }, conn);
+      cams.sync();
       addChat('', '', `${p.name} bergabung 👋`, true);
       toast(`${p.name} bergabung 👋`);
       playersDirty = true;
@@ -350,14 +371,21 @@ const hostHandlers = {
       p.lastChat = performance.now();
       S.net.broadcast({ t: 'chat', id: p.id, m }, conn);
       showChat(p.id, m);
+    } else if (msg.t === 'cam') {
+      p.cam = !!msg.on;
+      S.net.broadcast({ t: 'players', list: playerList() });
+      cams.sync();
+      playersDirty = true;
     }
   },
+  call(c) { cams.handleCall(c); },
   close(conn) {
     const p = S.players.get(conn.pid);
     if (!p) return;
     S.players.delete(p.id);
     S.world.removeTool(p.id);
     S.net.broadcast({ t: 'players', list: playerList(), left: p.name });
+    cams.sync();
     addChat('', '', `${p.name} keluar`, true);
     playersDirty = true;
   },
@@ -377,7 +405,7 @@ function startSolo(level) {
 }
 
 function portraitHint() {
-  if (window.innerHeight > window.innerWidth && window.innerWidth < 700) toast('Tip: miringkan HP (landscape) biar mejanya lebih besar 📱', 4000);
+  if (matchMedia('(pointer: coarse)').matches) toast('1 jari = dorong · 2 jari = putar spatula ✌️', 4000);
 }
 
 async function startHost(level) {
@@ -397,7 +425,7 @@ async function startHost(level) {
   S.myId = 0;
   S.nextId = 1;
   S.players.clear();
-  S.players.set(0, { id: 0, name: cleanName($('nameInput').value), color: PLAYER_COLORS[0], score: 0, lvl: 0 });
+  S.players.set(0, { id: 0, name: cleanName($('nameInput').value), color: PLAYER_COLORS[0], score: 0, lvl: 0, peer: net.peer.id, cam: false });
   hostNewLevel(level);
   showGame();
   portraitHint();
@@ -455,14 +483,19 @@ const clientHandlers = {
     backToLobby('Host menutup room atau koneksi terputus.');
   },
   warn(msg) { toast(msg); },
+  call(c) { cams.handleCall(c); },
 };
 
 function setPlayers(list) {
   const old = S.players;
   S.players = new Map();
   for (const p of list) {
-    S.players.set(p.id, { id: p.id, name: cleanName(p.name), color: String(p.color).slice(0, 9), score: p.score | 0, lvl: p.lvl | 0 });
+    S.players.set(p.id, {
+      id: p.id, name: cleanName(p.name), color: String(p.color).slice(0, 9), score: p.score | 0, lvl: p.lvl | 0,
+      peer: String(p.peer || '').slice(0, 80), cam: !!p.cam,
+    });
   }
+  cams.sync();
   for (const id of S.remoteTools.keys()) if (!S.players.has(id)) S.remoteTools.delete(id);
   if (old !== S.players) playersDirty = true;
 }
@@ -629,17 +662,61 @@ function pointerToWorld(e) {
   S.input.y = p.y;
 }
 
-cv.addEventListener('pointermove', (e) => { pointerType = e.pointerType; pointerToWorld(e); });
+// Touch: one finger moves and pushes, a second finger twists the spatula.
+const touches = new Map();
+let twistAngle = null;
+let primaryId = null;
+function twist() {
+  const [a, b] = [...touches.values()];
+  return Math.atan2(b.y - a.y, b.x - a.x);
+}
+
+cv.addEventListener('pointermove', (e) => {
+  pointerType = e.pointerType;
+  if (touches.has(e.pointerId)) {
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touches.size >= 2 && twistAngle != null) {
+      const ang = twist();
+      let d = ang - twistAngle;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      S.input.a += d;
+      twistAngle = ang;
+      return;
+    }
+    if (e.pointerId !== primaryId) return;
+  }
+  pointerToWorld(e);
+});
 cv.addEventListener('pointerdown', (e) => {
   ac();
   pointerType = e.pointerType;
   if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+  $('emotes').classList.remove('open');
   if (e.button === 2) { setTool(S.input.k === 'sweep' ? 'grab' : 'sweep'); return; }
+  try { cv.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+  if (e.pointerType === 'touch') {
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touches.size >= 2) {
+      // Second finger: rotate instead of pushing.
+      S.input.d = false;
+      twistAngle = twist();
+      return;
+    }
+    primaryId = e.pointerId;
+  }
   pointerToWorld(e);
   S.input.d = true;
-  cv.setPointerCapture(e.pointerId);
 });
-const release = () => { S.input.d = false; };
+const release = (e) => {
+  if (touches.delete(e.pointerId)) {
+    if (touches.size < 2) twistAngle = null;
+    if (e.pointerId === primaryId) primaryId = null;
+    S.input.d = false;
+    return;
+  }
+  S.input.d = false;
+};
 cv.addEventListener('pointerup', release);
 cv.addEventListener('pointercancel', release);
 cv.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -684,7 +761,7 @@ EMOTES.forEach((e, i) => {
   const b = document.createElement('button');
   b.textContent = e;
   b.title = `Emote (${i + 1})`;
-  b.addEventListener('click', () => sendEmote(i));
+  b.addEventListener('click', () => { sendEmote(i); $('emotes').classList.remove('open'); });
   $('emotes').append(b);
 });
 
@@ -709,6 +786,22 @@ $('btnCopy').addEventListener('click', async () => {
     toast('Link undangan disalin! Kirim ke teman 💌');
   } catch {
     toast(link, 6000);
+  }
+});
+$('btnCam').addEventListener('click', () => {
+  if (cams.on) cams.stop();
+  else cams.start();
+});
+$('btnEmote').addEventListener('click', () => $('emotes').classList.toggle('open'));
+const canFull = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+$('btnFull').hidden = !(canFull && matchMedia('(pointer: coarse)').matches);
+$('btnFull').addEventListener('click', () => {
+  const d = document;
+  if (d.fullscreenElement || d.webkitFullscreenElement) (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+  else {
+    const el = d.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    Promise.resolve(req.call(el)).catch(() => toast('Layar penuh tidak didukung di browser ini'));
   }
 });
 function syncSoundBtn() { $('btnSound').textContent = S.muted ? '🔇' : '🔊'; }
@@ -802,6 +895,7 @@ function frame(now) {
 
   if (playersDirty && S.mode) { renderPlayers(); playersDirty = false; }
   updateHud();
+  updateInsets();
 
   // Build the list of hands to draw.
   const tools = [];
@@ -823,12 +917,32 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+// Keep the table clear of the HUD, the toolbar, the player panel and the
+// webcam strip, whatever size the screen is.
+function updateInsets() {
+  if (!S.mode) return;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const hud = $('hud').getBoundingClientRect();
+  const bar = $('bar').getBoundingClientRect();
+  let top = hud.bottom + 4, bottom = vh - bar.top + 4, left = 8, right = 8;
+  const side = $('side');
+  if (vw > 900 && !side.hidden) right = vw - side.getBoundingClientRect().left + 8;
+  const camBox = $('cams');
+  const camTop = vw > 900 ? `${Math.round(hud.bottom + 4)}px` : `${Math.round(hud.bottom + 6)}px`;
+  if (camBox.style.top !== camTop) camBox.style.top = camTop;
+  if (!camBox.hidden) {
+    const r = camBox.getBoundingClientRect();
+    if (vw > 900) left = Math.max(left, r.right + 8);
+    else top = Math.max(top, r.bottom + 4);
+  }
+  const ins = renderer.inset;
+  if (ins.top !== top || ins.bottom !== bottom || ins.left !== left || ins.right !== right) {
+    renderer.inset = { top, bottom, left, right };
+  }
+}
+
 function onResize() {
   renderer.resize();
-  if (S.mode) {
-    const wide = window.innerWidth > 900;
-    renderer.inset = { top: wide ? 70 : 60, right: wide ? 268 : 12, bottom: wide ? 78 : 100, left: wide ? 16 : 10 };
-  }
 }
 window.addEventListener('resize', onResize);
 onResize();

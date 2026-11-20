@@ -2,7 +2,10 @@
 <html lang="id">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#ffd3ea">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Pilah Pil</title>
   <meta name="description" content="Game santai sortir pil warna-warni bareng teman. Main langsung di browser.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='6' y='22' width='52' height='20' rx='10' fill='%23ff8fb8'/%3E%3Crect x='32' y='22' width='26' height='20' rx='10' fill='%23ffd0e2'/%3E%3Crect x='32' y='22' width='10' height='20' fill='%23ffd0e2'/%3E%3C/svg%3E">
@@ -17,9 +20,9 @@
 
   <header id="hud" hidden>
     <div class="hud-left">
-      <button id="btnLeave" class="chip" title="Keluar ke menu">← Keluar</button>
+      <button id="btnLeave" class="chip" title="Keluar ke menu">←<span class="lbl"> Keluar</span></button>
       <div id="roomChip" class="chip room" hidden>
-        Room <b id="roomCode">----</b>
+        <span class="lbl">Room</span> <b id="roomCode">----</b>
         <button id="btnCopy" class="mini" title="Salin link undangan">Salin link</button>
       </div>
     </div>
@@ -29,10 +32,14 @@
     </div>
     <div class="hud-right">
       <button id="btnReshuffle" class="chip" title="Acak ulang level ini" hidden>↻ Acak ulang</button>
+      <button id="btnCam" class="chip cam-btn" title="Nyalakan kamera (tanpa suara)" hidden>📷</button>
+      <button id="btnFull" class="chip" title="Layar penuh" hidden>⛶</button>
       <button id="btnSound" class="chip" title="Suara">🔊</button>
       <button id="btnSide" class="chip side-toggle" title="Pemain & chat">👥</button>
     </div>
   </header>
+
+  <div id="cams" hidden></div>
 
   <aside id="side" hidden>
     <h3>Pemain <span id="playerCount"></span></h3>
@@ -48,10 +55,11 @@
 
   <footer id="bar" hidden>
     <div class="tools">
-      <button id="toolSweep" class="tool on" title="Spatula: tahan klik lalu dorong pil">🥄 Spatula</button>
-      <button id="toolGrab" class="tool" title="Jepit: tahan klik untuk mengangkat sampai 6 pil">🤏 Jepit</button>
+      <button id="toolSweep" class="tool on" title="Spatula: tahan klik lalu dorong pil">🥄<span class="lbl"> Spatula</span></button>
+      <button id="toolGrab" class="tool" title="Jepit: tahan klik untuk mengangkat sampai 6 pil">🤏<span class="lbl"> Jepit</span></button>
       <button id="rotL" class="tool icon" title="Putar (Q / scroll)">⟲</button>
       <button id="rotR" class="tool icon" title="Putar (E / scroll)">⟳</button>
+      <button id="btnEmote" class="tool icon emote-toggle" title="Emote">😊</button>
     </div>
     <div id="emotes" class="emotes"></div>
     <div class="hint">Tahan klik = dorong · Scroll/Q/E = putar · Spasi = ganti alat · 1–6 = emote</div>

@@ -18,6 +18,22 @@ Game santai 3D di browser: sortir pil warna-warni ke wadah yang warnanya sama, s
 
 Browser si pembuat room yang menjalankan permainan, jadi **tab host harus tetap terbuka**. Kalau host keluar, room-nya bubar.
 
+## Kamera (tanpa suara)
+
+Di dalam room, klik tombol 📷 untuk menyalakan kamera. Wajahmu muncul sebagai bulatan kecil dengan nama di layar semua pemain. Klik lagi untuk mematikan.
+
+- Hanya video, **audio tidak pernah diminta**.
+- Kamera baru menyala setelah kamu klik tombolnya dan browser minta izin. Tidak ada yang bisa menyalakan kamera orang lain.
+- Video dikirim langsung antar browser, tidak lewat server dan tidak disimpan.
+- Kamera hanya jalan lewat link `https://` (misalnya GitHub Pages) atau `localhost`.
+
+## Main di HP
+
+- **1 jari**: geser untuk menggerakkan & mendorong. **2 jari**: putar spatula. Bisa juga pakai tombol ⟲ ⟳.
+- Kalau HP tegak, meja otomatis diputar memanjang ke atas. Kalau HP miring, meja melebar.
+- Tombol ⛶ untuk layar penuh (Android). 😊 untuk membuka emote. 👥 untuk daftar pemain & chat.
+- Grafis otomatis diringankan di HP biar tetap lancar.
+
 ## Tingkat kesulitan
 
 | Level | Yang berubah |
@@ -41,6 +57,7 @@ Cuma file statis, tidak perlu build dan tidak perlu server game sendiri.
 - `js/levels.js`: generator level (warna, ukuran meja, wadah, palang, posisi pil)
 - `js/sim.js`: fisika pil, spatula, jepit, dan pengecekan wadah
 - `js/render3d.js`: tampilan 3D pakai [three.js](https://threejs.org) (MIT, di-vendor di `js/vendor/`): pil kapsul & tablet glossy, wadah, palang permen, spatula dengan hiasan (hati, bintang, bunga, awan, permata) per pemain
+- `js/cam.js`: kamera opsional (video saja) antar pemain lewat WebRTC
 - `js/net.js`: multiplayer peer-to-peer lewat WebRTC ([PeerJS](https://peerjs.com), MIT, di-vendor di `js/vendor/`)
 - `js/main.js`: lobby, input, loop game, sinkronisasi host ↔ tamu
 

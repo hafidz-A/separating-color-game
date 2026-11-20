@@ -66,6 +66,7 @@ export class HostNet {
         conn.on('close', () => { if (this.conns.delete(conn)) this.h.close(conn); });
         conn.on('error', () => { if (this.conns.delete(conn)) this.h.close(conn); });
       });
+      peer.on('call', (call) => { if (this.h.call) this.h.call(call); else call.close(); });
       peer.on('disconnected', () => {
         // Lost the signalling server: existing players keep playing, but
         // reconnect so new friends can still join.
@@ -77,7 +78,7 @@ export class HostNet {
           if (err.type === 'unavailable-id' && attempt < 4) {
             this.start(makeCode(), attempt + 1).then(resolve, reject);
           } else reject(new Error(errorText(err)));
-        } else if (this.h.warn) this.h.warn(errorText(err));
+        } else if (this.h.warn && err.type !== 'peer-unavailable') this.h.warn(errorText(err));
       });
     });
   }
@@ -129,9 +130,10 @@ export class ClientNet {
         conn.on('close', () => { if (settled) this.h.close(); });
         conn.on('error', () => { if (settled) this.h.close(); });
       });
+      peer.on('call', (call) => { if (this.h.call) this.h.call(call); else call.close(); });
       peer.on('error', (err) => {
         if (!settled) fail(errorText(err));
-        else if (this.h.warn) this.h.warn(errorText(err));
+        else if (this.h.warn && err.type !== 'peer-unavailable') this.h.warn(errorText(err));
       });
     });
   }
