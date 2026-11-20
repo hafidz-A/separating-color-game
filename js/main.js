@@ -27,8 +27,9 @@ const S = {
   world: null,
   myId: 0,
   players: new Map(),
-  input: { x: 0, y: 0, a: -0.6, k: 'sweep', d: false, q: 0 },
-  gamePref: 'random',
+  input: { x: 0, y: 0, a: -0.6, k: 'sweep', d: false, q: 0, gx: 0, gy: 0 },
+  gamePref: 'random', // every level picks a game at random
+  golf: { yaw: 0, overview: false, auto: true, aim: null, lastX: 0, lastY: 0 },
   remoteTools: new Map(), // client-side mirror of other players' hands
   bubbles: new Map(),
   fx: [],
@@ -218,7 +219,14 @@ function applyModeUI(w, announce) {
     $('rotL').hidden = !rot;
     $('rotR').hidden = !rot;
   }
-  $('rotL').parentElement.classList.toggle('empty', !mode.ui.tools && $('rotL').hidden);
+  $('btnView').hidden = !mode.ui.view;
+  $('rotL').parentElement.classList.toggle('empty', !mode.ui.tools && $('rotL').hidden && !mode.ui.view);
+  if (w.mode === 'golf' && announce) {
+    S.golf.auto = true;
+    S.golf.aim = null;
+    const me = w.balls.get(S.myId);
+    S.golf.yaw = me ? w.routeYaw(me.x, me.y) : 0;
+  }
   if (announce) {
     const b = $('banner');
     b.querySelector('.b-icon').textContent = mode.icon;
@@ -771,6 +779,23 @@ function stepRotate(dir) {
 }
 let twistAcc = 0;
 
+// Golf: pull back on the screen like a slingshot. The pull is turned into a
+// direction on the course using the camera, so it works from any view.
+function golfAim(e) {
+  const a = S.golf.aim;
+  if (!a) return;
+  const px = a.sx - e.clientX, py = a.sy - e.clientY;
+  const maxPx = Math.min(window.innerWidth, window.innerHeight) * 0.3;
+  const len = Math.min(Math.hypot(px, py), maxPx);
+  if (len < 4) { S.input.gx = 0; S.input.gy = 0; return; }
+  const b = renderer.groundBasis();
+  let wx = b.rx * px + b.fx * -py, wy = b.rz * px + b.fz * -py;
+  const wl = Math.hypot(wx, wy) || 1;
+  wx /= wl; wy /= wl;
+  S.input.gx = Math.round(wx * len / maxPx * 170);
+  S.input.gy = Math.round(wy * len / maxPx * 170);
+}
+
 function pointerToWorld(e) {
   S.hasPointer = true;
   const offset = e.pointerType === 'touch' ? 46 : 0; // keep the hand visible above the finger
@@ -798,6 +823,7 @@ cv.addEventListener('pointermove', (e) => {
       while (d > Math.PI) d -= Math.PI * 2;
       while (d < -Math.PI) d += Math.PI * 2;
       if (curGame() === 'pill') S.input.a += d;
+      else if (curGame() === 'golf') { S.golf.yaw -= d; S.golf.auto = false; }
       else if (curGame() === 'puzzle') {
         twistAcc += d;
         if (Math.abs(twistAcc) > 0.7) { stepRotate(Math.sign(twistAcc)); twistAcc = 0; }
@@ -808,6 +834,7 @@ cv.addEventListener('pointermove', (e) => {
     if (e.pointerId !== primaryId) return;
   }
   pointerToWorld(e);
+  if (curGame() === 'golf') golfAim(e);
 });
 cv.addEventListener('pointerdown', (e) => {
   ac();
@@ -817,14 +844,16 @@ cv.addEventListener('pointerdown', (e) => {
   if (e.button === 2) {
     if (curGame() === 'pill') setTool(S.input.k === 'sweep' ? 'grab' : 'sweep');
     else if (curGame() === 'puzzle') stepRotate(1);
+    else if (curGame() === 'golf') toggleGolfView();
     return;
   }
   try { cv.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
   if (e.pointerType === 'touch') {
     touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (touches.size >= 2) {
-      // Second finger: rotate instead of pushing.
+      // Second finger: rotate instead of pushing / putting.
       S.input.d = false;
+      S.golf.aim = null; S.input.gx = 0; S.input.gy = 0;
       twistAngle = twist();
       twistAcc = 0;
       return;
@@ -833,8 +862,10 @@ cv.addEventListener('pointerdown', (e) => {
   }
   pointerToWorld(e);
   S.input.d = true;
+  if (curGame() === 'golf') { S.golf.aim = { sx: e.clientX, sy: e.clientY }; S.input.gx = 0; S.input.gy = 0; }
 });
 const release = (e) => {
+  S.golf.aim = null;
   if (touches.delete(e.pointerId)) {
     if (touches.size < 2) twistAngle = null;
     if (e.pointerId === primaryId) primaryId = null;
@@ -849,6 +880,7 @@ cv.addEventListener('contextmenu', (e) => e.preventDefault());
 cv.addEventListener('wheel', (e) => {
   e.preventDefault();
   if (curGame() === 'puzzle') stepRotate(Math.sign(e.deltaY));
+  else if (curGame() === 'golf') { S.golf.yaw += Math.sign(e.deltaY) * 0.12; S.golf.auto = false; }
   else S.input.a += Math.sign(e.deltaY) * 0.14;
 }, { passive: false });
 
@@ -964,14 +996,9 @@ function ensureName() {
   if (!$('nameInput').value.trim()) $('nameInput').value = 'Pil' + Math.floor(Math.random() * 900 + 100);
   store.set('name', cleanName($('nameInput').value));
 }
-function readGamePref() {
-  const v = $('gameInput').value;
-  S.gamePref = MODES[v] ? v : 'random';
-  store.set('game', S.gamePref);
-}
-$('gameInput').value = store.get('game', 'random');
-$('btnSolo').addEventListener('click', () => { ac(); ensureName(); readGamePref(); startSolo(chosenLevel()); });
-$('btnHost').addEventListener('click', () => { ac(); ensureName(); readGamePref(); startHost(chosenLevel()); });
+$('btnSolo').addEventListener('click', () => { ac(); ensureName(); startSolo(chosenLevel()); });
+$('btnHost').addEventListener('click', () => { ac(); ensureName(); startHost(chosenLevel()); });
+$('btnView').addEventListener('click', toggleGolfView);
 $('joinForm').addEventListener('submit', (e) => { e.preventDefault(); ac(); ensureName(); joinRoom($('codeInput').value); });
 $('codeInput').addEventListener('input', () => { $('codeInput').value = cleanCode($('codeInput').value); });
 
@@ -1038,12 +1065,38 @@ let last = performance.now();
 let acc = 0;
 const STEP = 1 / 60;
 
+// Golf camera: after each putt, once your ball stops, turn to face the next
+// part of the course (unless you have turned the camera yourself).
+function golfCamera(w, dt) {
+  const b = w.balls.get(S.myId);
+  if (!b) return;
+  const moving = Math.hypot(b.rx - S.golf.lastX, b.ry - S.golf.lastY) > 0.3;
+  S.golf.lastX = b.rx; S.golf.lastY = b.ry;
+  if (moving) { S.golf.wasMoving = true; return; }
+  if (S.golf.wasMoving) { S.golf.wasMoving = false; S.golf.auto = true; }
+  if (!S.golf.auto || S.golf.aim) return;
+  const target = w.routeYaw(b.rx, b.ry);
+  let d = target - S.golf.yaw;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  S.golf.yaw += d * Math.min(1, dt * 3);
+  if (Math.abs(d) < 0.01) S.golf.auto = false;
+}
+
+function toggleGolfView() {
+  S.golf.overview = !S.golf.overview;
+  $('btnView').classList.toggle('on', S.golf.overview);
+  toast(S.golf.overview ? 'Lihat seluruh lapangan 🗺️' : 'Kamera di belakang bolamu ⛳', 1600);
+}
+
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   const w = S.world;
 
   if (rotDir && (!w || w.mode === 'pill')) S.input.a += rotDir * 3 * dt;
+  if (rotDir && w && w.mode === 'golf') { S.golf.yaw += rotDir * 1.8 * dt; S.golf.auto = false; }
+  if (w && w.mode === 'golf') golfCamera(w, dt);
   if (S.input.a > Math.PI) S.input.a -= Math.PI * 2;
   if (S.input.a < -Math.PI) S.input.a += Math.PI * 2;
 
@@ -1078,11 +1131,11 @@ function frame(now) {
       while (da < -Math.PI) da += Math.PI * 2;
       t.a += da * k;
     }
-    const key = `${Math.round(S.input.x)}|${Math.round(S.input.y)}|${S.input.a.toFixed(2)}|${S.input.k}|${S.input.d}|${S.input.q}`;
+    const key = `${Math.round(S.input.x)}|${Math.round(S.input.y)}|${S.input.a.toFixed(2)}|${S.input.k}|${S.input.d}|${S.input.q}|${S.input.gx}|${S.input.gy}`;
     if (S.hasPointer && key !== S.lastInputKey && now - S.lastInputSent > INPUT_MS) {
       S.lastInputKey = key;
       S.lastInputSent = now;
-      S.net.send({ t: 'in', x: Math.round(S.input.x), y: Math.round(S.input.y), a: +S.input.a.toFixed(3), k: S.input.k, d: S.input.d ? 1 : 0, q: S.input.q | 0 });
+      S.net.send({ t: 'in', x: Math.round(S.input.x), y: Math.round(S.input.y), a: +S.input.a.toFixed(3), k: S.input.k, d: S.input.d ? 1 : 0, q: S.input.q | 0, gx: S.input.gx | 0, gy: S.input.gy | 0 });
     }
   }
 
@@ -1110,7 +1163,8 @@ function frame(now) {
   }
   S.fx = S.fx.filter((f) => now - f.t0 < 900);
   S.emotes = S.emotes.filter((e) => now - e.t0 < 1600);
-  renderer.draw(w, { now, tools, fx: S.fx, emotes: S.emotes, showOwnTag: S.mode !== 'solo' });
+  const colors = new Map([...S.players.values()].map((p) => [p.id, p.color]));
+  renderer.draw(w, { now, tools, fx: S.fx, emotes: S.emotes, showOwnTag: S.mode !== 'solo', myId: S.myId, colors, golf: S.golf });
   requestAnimationFrame(frame);
 }
 

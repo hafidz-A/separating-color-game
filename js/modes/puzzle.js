@@ -152,7 +152,8 @@ class PuzzleWorld {
 
   snapshot() {
     const ps = [];
-    for (const p of this.pieces) ps.push(p.id, Math.round(p.x), Math.round(p.y), p.q, p.placed ? 2 : p.holder >= 0 ? 1 : 0);
+    // State: -1 placed, 0 free, pid + 1 while someone holds it.
+    for (const p of this.pieces) ps.push(p.id, Math.round(p.x), Math.round(p.y), p.q, p.placed ? -1 : p.holder >= 0 ? p.holder + 1 : 0);
     return { ps };
   }
 
@@ -163,9 +164,9 @@ class PuzzleWorld {
       if (!p) continue;
       p.x = +msg.ps[i + 1]; p.y = +msg.ps[i + 2]; p.q = msg.ps[i + 3] & 3;
       const st = msg.ps[i + 4] | 0;
-      p.placed = st === 2;
-      p.holder = st === 1 ? 1 : -1;
-      if (st === 1) p.z = Math.max(p.z, ++this.z);
+      p.placed = st === -1;
+      p.holder = st > 0 ? st - 1 : -1;
+      if (st > 0) p.z = Math.max(p.z, ++this.z);
     }
   }
 

@@ -335,6 +335,13 @@ export class Renderer {
     mk.topper.scale.setScalar(scale * (1 + Math.sin(now / 300 + mk.phase) * 0.04));
   }
 
+  setFov(f) {
+    if (this.camera.fov === f) return;
+    this.camera.fov = f;
+    this.camera.updateProjectionMatrix();
+    this.fitKey = '';
+  }
+
   clearLevel() {
     disposeTree(this.levelGroup);
     this.levelGroup.clear();
@@ -406,6 +413,16 @@ export class Renderer {
     cam.updateMatrixWorld();
   }
 
+  // Camera forward and right directions flattened onto the table (sim x/y).
+  groundBasis() {
+    const d = new THREE.Vector3();
+    this.camera.getWorldDirection(d);
+    let fx = d.x, fz = d.z;
+    const l = Math.hypot(fx, fz) || 1;
+    fx /= l; fz /= l;
+    return { fx, fz, rx: -fz, rz: fx };
+  }
+
   toWorld(sx, sy) {
     const ndc = new THREE.Vector2((sx / this.cw) * 2 - 1, -(sy / this.ch) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);
@@ -416,7 +433,7 @@ export class Renderer {
 
   project(x, y, z) {
     const v = this.tmpV.set(x - this.W / 2, z, y - this.H / 2).project(this.camera);
-    return { x: (v.x + 1) / 2 * this.cw, y: (1 - v.y) / 2 * this.ch, vis: v.z < 1 };
+    return { x: (v.x + 1) / 2 * this.cw, y: (1 - v.y) / 2 * this.ch, vis: v.z < 1 && v.z > -1 };
   }
 
   // ---- level scenery ----
@@ -612,7 +629,13 @@ export class Renderer {
     const { W, H } = world;
     const now = view.now;
 
-    if (decorative) {
+    // A scene may drive the camera itself (golf's chase view).
+    const ownCam = !decorative && sceneObj && sceneObj.controlsCamera && sceneObj.controlsCamera(world, view, this, now);
+    if (!ownCam) this.setFov(34);
+    if (ownCam) {
+      this.ov.classList.remove('demo');
+      this.fitKey = '';
+    } else if (decorative) {
       this.az = Math.sin(now / 9000) * 0.5;
       this.fitCamera(W, H, { x: 0, y: this.ch * 0.08, w: this.cw, h: this.ch * 0.9 }, this.az, false);
       this.ov.classList.add('demo');
@@ -672,7 +695,9 @@ export class Renderer {
       el._name.hidden = t.me && !view.showOwnTag;
       const bub = t.bubble && now < t.bubble.until ? t.bubble.text : '';
       if (el._bubText !== bub) { el._bubText = bub; el._bubble.textContent = bub; el._bubble.hidden = !bub; }
-      this.place(el, this.project(top.x + W / 2, top.z + H / 2, top.y + 52));
+      const pr = this.project(top.x + W / 2, top.z + H / 2, top.y + 52);
+      el.style.visibility = pr.vis ? '' : 'hidden';
+      this.place(el, pr);
     }
     for (const [pid, el] of this.tagEls) if (!seenTags.has(pid)) { el.remove(); this.tagEls.delete(pid); }
 

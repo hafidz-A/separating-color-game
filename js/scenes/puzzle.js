@@ -198,6 +198,7 @@ export class PuzzleScene {
     const topMat = new THREE.MeshStandardMaterial({ map: pieceTex, roughness: 0.55 });
     const sideMat = new THREE.MeshStandardMaterial({ color: '#f4e4cc', roughness: 0.85 });
     this.meshes = new Map();
+    this.rims = new Map();
     for (const p of world.pieces) {
       const geo = new THREE.ExtrudeGeometry(pieceShape(world, p.c, p.r), {
         depth: PIECE_TOP - 2, bevelEnabled: true, bevelThickness: 1, bevelSize: 0.8, bevelSegments: 2, curveSegments: 6,
@@ -209,6 +210,15 @@ export class PuzzleScene {
       mesh.receiveShadow = true;
       g.add(mesh);
       this.meshes.set(p.id, mesh);
+      // Glowing rim in the holder's colour, shown while someone carries the piece.
+      const rimGeo = new THREE.ShapeGeometry(pieceShape(world, p.c, p.r), 6);
+      rimGeo.translate(-(p.c + 0.5) * PIECE, -(p.r + 0.5) * PIECE, 0);
+      rimGeo.scale(1.12, 1.12, 1);
+      rimGeo.rotateX(Math.PI / 2);
+      const rim = new THREE.Mesh(rimGeo, new THREE.MeshBasicMaterial({ color: '#ffffff', side: THREE.DoubleSide, transparent: true, opacity: 0.9 }));
+      rim.visible = false;
+      g.add(rim);
+      this.rims.set(p.id, rim);
     }
     this.world = world;
   }
@@ -228,6 +238,14 @@ export class PuzzleScene {
       m.rotation.y = -p.rq;
       const s = p.holder >= 0 ? 1.05 : 1;
       m.scale.set(s, 1, s);
+      const rim = this.rims.get(p.id);
+      const col = p.holder >= 0 && view.colors ? view.colors.get(p.holder) : null;
+      rim.visible = !!col;
+      if (col) {
+        rim.material.color.set(col);
+        rim.position.set(p.rx - W / 2, y + 0.5, p.ry - H / 2);
+        rim.rotation.y = -p.rq;
+      }
     }
 
     // Each player's hand: their topper floating over the pointer.

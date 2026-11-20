@@ -164,7 +164,25 @@ class GolfWorld {
     t.x = +inp.x || 0;
     t.y = +inp.y || 0;
     t.down = !!inp.d;
+    // Aim vector (sim units, up to 170 long) worked out on the player's own
+    // screen from their camera, so pulling back works from any view angle.
+    const gx = +inp.gx || 0, gy = +inp.gy || 0;
+    const gl = Math.hypot(gx, gy);
+    const k = gl > 170 ? 170 / gl : 1;
+    t.gx = gx * k; t.gy = gy * k;
     if (!this.balls.has(pid)) this.addBall(pid);
+  }
+
+  // Direction (radians, sim x/y) from a point toward the next tile on the route.
+  routeYaw(x, y) {
+    const cx = Math.floor((x - 40) / TILE), cy = Math.floor((y - 40) / TILE);
+    let i = this.cells.findIndex(([a, b]) => a === cx && b === cy);
+    if (i < 0) i = 0;
+    let tx, ty;
+    if (i >= this.cells.length - 1) { [tx, ty] = this.hole; }
+    else { const c = this.cells[i + 1]; tx = 40 + c[0] * TILE + TILE / 2; ty = 40 + c[1] * TILE + TILE / 2; }
+    if (Math.hypot(tx - x, ty - y) < 1) return 0;
+    return Math.atan2(ty - y, tx - x);
   }
 
   barEnds(bar, time = this.time) {
@@ -181,9 +199,9 @@ class GolfWorld {
       const b = this.balls.get(t.pid);
       if (!b || b.holed) { t.wasDown = t.down; continue; }
       const still = Math.hypot(b.vx, b.vy) < 5;
-      if (t.down && !t.wasDown && still) b.aim = { sx: t.x, sy: t.y };
+      if (t.down && !t.wasDown && still) b.aim = {};
       if (b.aim) {
-        b.ax = b.aim.sx - t.x; b.ay = b.aim.sy - t.y;
+        b.ax = t.gx || 0; b.ay = t.gy || 0;
         if (!t.down) {
           const len = Math.hypot(b.ax, b.ay);
           if (len > 10 && still) {
@@ -223,19 +241,6 @@ class GolfWorld {
           // Velocity of the bar at the closest point (rotation about its centre).
           const px = b.x - bar[0], py = b.y - bar[1];
           segPush(b, ax, ay, bx, by, BALL_R + 5, 0.6, -w * py, w * px);
-        }
-      }
-      for (let i = 0; i < balls.length; i++) {
-        for (let j = i + 1; j < balls.length; j++) {
-          const a = balls[i], c = balls[j];
-          let nx = c.x - a.x, ny = c.y - a.y;
-          const d = Math.hypot(nx, ny);
-          if (d >= BALL_R * 2 || d < 1e-6) continue;
-          nx /= d; ny /= d;
-          const push = (BALL_R * 2 - d) / 2;
-          a.x -= nx * push; a.y -= ny * push; c.x += nx * push; c.y += ny * push;
-          const vn = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny;
-          if (vn < 0) { a.vx += vn * nx; a.vy += vn * ny; c.vx -= vn * nx; c.vy -= vn * ny; }
         }
       }
     }
@@ -325,8 +330,8 @@ export default {
   id: 'golf',
   name: 'Golf Mini',
   icon: '⛳',
-  ui: { tools: false, rotate: false },
-  hint: 'Tahan di mana saja, tarik ke belakang seperti ketapel, lalu lepas untuk memukul',
+  ui: { tools: false, rotate: 'camera', view: true },
+  hint: 'Tarik ke belakang seperti ketapel lalu lepas. ⟲ ⟳ / Q E / 2 jari = putar kamera, 🗺️ = lihat seluruh lapangan',
   makeDef,
   create: (def) => new GolfWorld(def),
   hud(w, myId) {

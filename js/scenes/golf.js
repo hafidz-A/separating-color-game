@@ -5,7 +5,6 @@ import * as THREE from '../vendor/three.module.min.js';
 import { toyMaterial, roundRectShape, slab } from '../render3d.js';
 import { TILE, BALL_R, HOLE_R } from '../modes/golf.js';
 
-const UP = new THREE.Vector3(0, 1, 0);
 
 function grassTexture(light) {
   const c = document.createElement('canvas');
@@ -120,9 +119,12 @@ export class GolfScene {
     this.flag = flag;
 
     this.ballGeo = new THREE.SphereGeometry(BALL_R, 22, 16);
+    this.ringGeo = new THREE.TorusGeometry(17, 2.4, 8, 36).rotateX(Math.PI / 2);
+    this.camP = null;
+    this.camL = null;
     this.balls = new Map();
-    this.arrowShaft = new THREE.BoxGeometry(1, 3, 5);
-    this.arrowHead = new THREE.ConeGeometry(8, 16, 14).rotateZ(-Math.PI / 2);
+    this.arrowShaft = new THREE.BoxGeometry(1, 3, 7);
+    this.arrowHead = new THREE.ConeGeometry(11, 22, 14).rotateZ(-Math.PI / 2);
   }
 
   ball(pid, color, core) {
@@ -136,8 +138,10 @@ export class GolfScene {
     const shaft = new THREE.Mesh(this.arrowShaft, toyMaterial(color, { transparent: true, opacity: 0.85 }));
     const head = new THREE.Mesh(this.arrowHead, shaft.material);
     arrow.add(shaft, head);
-    core.levelGroup.add(mesh, arrow);
-    o = { color, mesh, arrow, shaft, head };
+    // A ring in the player's colour under every ball, so balls are easy to tell apart.
+    const ring = new THREE.Mesh(this.ringGeo, toyMaterial(color, { transparent: true, opacity: 0.85 }));
+    core.levelGroup.add(mesh, arrow, ring);
+    o = { color, mesh, arrow, shaft, head, ring };
     this.balls.set(pid, o);
     return o;
   }
@@ -162,24 +166,53 @@ export class GolfScene {
       seen.add(b.pid);
       o.mesh.visible = !b.holed;
       o.mesh.position.set(b.rx + ox, BALL_R * 1.45, b.ry + oz);
+      o.ring.visible = !b.holed;
+      o.ring.position.set(b.rx + ox, 1.2, b.ry + oz);
+      const pulse = t.me ? 1.15 + Math.sin(now / 250) * 0.12 : 1;
+      o.ring.scale.set(pulse, 1, pulse);
       const len = Math.hypot(b.ax, b.ay);
       o.arrow.visible = !b.holed && !!b.aim && len > 10;
       if (o.arrow.visible) {
         const power = Math.min(len, 170) / 170;
-        const L = 26 + power * 110;
-        o.arrow.position.set(b.rx + ox, 4, b.ry + oz);
+        // Long, low aim line so it reads from behind the ball too.
+        const L = 40 + power * 260;
+        const start = BALL_R * 2;
+        o.arrow.position.set(b.rx + ox, 3, b.ry + oz);
         o.arrow.rotation.y = -Math.atan2(b.ay, b.ax);
         o.shaft.scale.x = L;
-        o.shaft.position.x = BALL_R + L / 2;
-        o.head.position.x = BALL_R + L + 6;
+        o.shaft.position.x = start + L / 2;
+        o.head.position.x = start + L + 9;
         const hue = new THREE.Color(t.color).lerp(new THREE.Color('#ff3344'), power * 0.7);
         o.shaft.material.color.copy(hue);
       }
       if (!b.holed) anchors.set(b.pid, new THREE.Vector3(b.rx + ox, BALL_R + 8, b.ry + oz));
     }
-    for (const [pid, o] of this.balls) if (!seen.has(pid)) { o.mesh.visible = false; o.arrow.visible = false; }
+    for (const [pid, o] of this.balls) if (!seen.has(pid)) { o.mesh.visible = false; o.arrow.visible = false; o.ring.visible = false; }
     return anchors;
+  }
+
+  // Third-person camera behind the player's own ball. Returns false to fall
+  // back to the whole-course view (overview toggle, or ball already in).
+  controlsCamera(world, view, core, now) {
+    const g = view.golf || {};
+    const me = world.balls.get(view.myId);
+    const dt = Math.min(0.1, (now - (this.lastT || now)) / 1000);
+    this.lastT = now;
+    if (g.overview || !me || me.holed) { this.camP = null; return false; }
+    core.setFov(55);
+    const yaw = g.yaw || 0;
+    const dx = Math.cos(yaw), dz = Math.sin(yaw);
+    const bx = me.rx - world.W / 2, bz = me.ry - world.H / 2;
+    const wantP = new THREE.Vector3(bx - dx * 230, 150, bz - dz * 230);
+    const wantL = new THREE.Vector3(bx + dx * 120, 0, bz + dz * 120);
+    if (!this.camP) { this.camP = wantP.clone(); this.camL = wantL.clone(); }
+    const k = 1 - Math.exp(-dt * 7);
+    this.camP.lerp(wantP, k);
+    this.camL.lerp(wantL, k);
+    core.camera.position.copy(this.camP);
+    core.camera.lookAt(this.camL);
+    core.camera.updateMatrixWorld();
+    return true;
   }
 }
 
-export { UP };

@@ -65,6 +65,7 @@
       <button id="toolGrab" class="tool" title="Jepit: tahan klik untuk mengangkat sampai 6 pil">🤏<span class="lbl"> Jepit</span></button>
       <button id="rotL" class="tool icon" title="Putar (Q / scroll)">⟲</button>
       <button id="rotR" class="tool icon" title="Putar (E / scroll)">⟳</button>
+      <button id="btnView" class="tool icon" title="Lihat seluruh lapangan" hidden>🗺️</button>
       <button id="btnEmote" class="tool icon emote-toggle" title="Emote">😊</button>
     </div>
     <div id="emotes" class="emotes"></div>
@@ -77,28 +78,17 @@
         <span class="cap"></span>
         <h1>Main Yuk!</h1>
       </div>
-      <p class="tagline">Kumpulan game santai buat bareng teman & pasangan. Tiap level game-nya bisa beda, makin lama makin seru.</p>
+      <p class="tagline">Kumpulan game santai buat sendiri, berdua, atau rame-rame. Tiap level game-nya diacak, makin lama makin seru.</p>
       <div class="games" aria-hidden="true"><span>💊 Pilah Pil</span><span>🧩 Pasang Puzzle</span><span>⛳ Golf Mini</span></div>
 
       <label class="field">
         <span>Nama kamu</span>
         <input id="nameInput" maxlength="16" placeholder="mis. Hafidz">
       </label>
-      <div class="row fields">
-        <label class="field">
-          <span>Permainan</span>
-          <select id="gameInput">
-            <option value="random">🎲 Acak tiap level</option>
-            <option value="pill">💊 Pilah Pil</option>
-            <option value="puzzle">🧩 Pasang Puzzle</option>
-            <option value="golf">⛳ Golf Mini</option>
-          </select>
-        </label>
-        <label class="field small">
-          <span>Mulai level</span>
-          <input id="levelInput" type="number" min="1" max="30" value="1">
-        </label>
-      </div>
+      <label class="field small">
+        <span>Mulai dari level</span>
+        <input id="levelInput" type="number" min="1" max="30" value="1">
+      </label>
 
       <div class="row">
         <button id="btnSolo" class="btn ghost">Main sendiri</button>
@@ -120,8 +110,8 @@
         <ul>
           <li><b>💊 Pilah Pil</b>: tahan & geser spatula untuk mendorong pil ke wadah warnanya. Spasi / klik kanan = jepit (angkat 6 pil). Scroll / Q E = putar.</li>
           <li><b>🧩 Pasang Puzzle</b>: tahan & geser kepingan ke bingkai sampai pas. Level tinggi ada kepingan miring: putar dengan ⟲ ⟳, Q / E, scroll, atau 2 jari.</li>
-          <li><b>⛳ Golf Mini</b>: tahan di mana saja, tarik ke belakang seperti ketapel, lepas untuk memukul. Lintasannya selalu baru tiap level. Awas air!</li>
-          <li>Pilih <b>Acak</b> supaya tiap level game-nya berganti, atau pilih satu game saja.</li>
+          <li><b>⛳ Golf Mini</b>: kamera di belakang bolamu. Tarik ke belakang seperti ketapel ke arah mana pun, lepas untuk memukul. ⟲ ⟳ / Q E / 2 jari = putar kamera, 🗺️ = lihat seluruh lapangan. Lintasan selalu baru. Awas air!</li>
+          <li>Game-nya <b>diacak tiap level</b>. Tiap pemain punya warna sendiri: spatula, tangan, kepingan yang dipegang, dan bola golf ikut warnamu.</li>
           <li>Buat room, bagikan kodenya, lalu main bareng sampai 10 orang.</li>
         </ul>
       </details>
