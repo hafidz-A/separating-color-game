@@ -10,7 +10,7 @@
 // "credentials API" link (it looks like the example below) and paste it here:
 //
 // window.PILAHPIL_TURN_URL = 'https://YOUR-APP.metered.live/api/v1/turn/credentials?apiKey=YOUR_KEY';
-window.PILAHPIL_TURN_URL = 'https://pilahpil-turn.fincardsland.workers.dev';
+window.PILAHPIL_TURN_URL = 'https://pilahpil-turn.fincardsland.workers.dev/api/turn';
 
 // Or list relay servers directly:
 // window.PILAHPIL_TURN = [

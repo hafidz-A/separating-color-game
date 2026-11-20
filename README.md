@@ -26,16 +26,15 @@ Browser si pembuat room yang menjalankan permainan, jadi **tab host harus tetap 
 
 ## Relay Cloudflare (biar bisa main beda jaringan)
 
-Relay (TURN) meneruskan data kalau dua HP tidak bisa tersambung langsung. Cloudflare memberi 1.000 GB/bulan gratis. Kunci relay-nya rahasia, jadi disimpan di Worker kecil (`cloudflare/turn-worker.js`) yang membagikan kredensial sementara (24 jam).
+Relay (TURN) meneruskan data kalau dua HP tidak bisa tersambung langsung. Cloudflare memberi 1.000 GB/bulan gratis. Kunci relay-nya rahasia, jadi disimpan di Worker `pilahpil-turn`, yang membagikan kredensial sementara (24 jam) di `/api/turn` dan sekaligus menyajikan game-nya (`wrangler.jsonc`).
 
-1. **Buat kunci TURN**: dashboard Cloudflare → **Realtime** → **TURN Server** → *Create*. Simpan **Key ID** dan **API Token**-nya (jangan dibagikan).
-2. **Buat Worker**: **Workers & Pages** → *Create* → *Worker* → beri nama `pilahpil-turn` → *Deploy* → *Edit code* → hapus isinya, tempel isi `cloudflare/turn-worker.js` → *Deploy*.
-3. **Isi pengaturan Worker**: tab **Settings** → **Variables and Secrets** → *Add*:
-   - `TURN_KEY_ID` (Text) = Key ID
-   - `TURN_KEY_API_TOKEN` (**Secret**) = API Token
-   - lalu *Deploy*.
-4. **Tes**: buka `https://pilahpil-turn.<akunmu>.workers.dev` di browser → harus muncul `Forbidden` (normal, karena hanya web game yang boleh minta).
-5. Isi URL Worker itu di `js/config.js` pada `window.PILAHPIL_TURN_URL`, commit, tunggu GitHub Pages ter-update. Di game, **🔧 Cek koneksi** → baris *relay (TURN)* harus ✅.
+1. **Kunci TURN**: dashboard Cloudflare → **Realtime** → **TURN Server** → *Create*. Simpan ID dan API Token-nya (jangan dibagikan).
+2. **Worker dari repo ini**: **Workers & Pages** → *Create* → *Import a repository* → pilih repo ini (branch `main`). Nama Worker harus `pilahpil-turn` (sesuai `wrangler.jsonc`). Setiap push ke `main` otomatis ter-deploy.
+3. **Variabel**: Worker → **Settings** → **Variables and Secrets**: `TURN_KEY_ID` (Text) dan `TURN_KEY_API_TOKEN` (**Secret**).
+4. **Domains**: nyalakan switch **Production** untuk `pilahpil-turn.<akun>.workers.dev`.
+5. **Tes**: buka `https://pilahpil-turn.<akun>.workers.dev/api/turn` → `Forbidden` artinya benar (hanya web game yang boleh minta). Di game, **🔧 Cek koneksi** → baris relay harus ✅.
+
+Game-nya juga bisa dimainkan langsung di `https://pilahpil-turn.<akun>.workers.dev`.
 
 ## Chat
 

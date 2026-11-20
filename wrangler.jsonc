@@ -1,0 +1,11 @@
+// Cloudflare Worker "pilahpil-turn": serves the game's static files and
+// hands out relay (TURN) credentials at /api/turn (cloudflare/turn-worker.js).
+// TURN_KEY_ID and TURN_KEY_API_TOKEN are set in the Cloudflare dashboard.
+{
+  "name": "pilahpil-turn",
+  "main": "cloudflare/turn-worker.js",
+  "compatibility_date": "2025-06-01",
+  "assets": { "directory": ".", "binding": "ASSETS" },
+  // Keep the variables entered in the dashboard when deploying from Git.
+  "keep_vars": true
+}
