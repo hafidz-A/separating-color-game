@@ -1,2 +1,47 @@
-# separating-color-game
-game for 1-10 game that handle separating pills based on the colors to the its destination
+# Pilah Pil 💊
+
+Game santai di browser: sortir pil warna-warni ke wadah yang warnanya sama, sendirian atau **bareng sampai 10 orang**. Makin tinggi levelnya, mejanya makin luas dan makin susah.
+
+## Cara main
+
+- **Spatula**: tahan klik/sentuh lalu geser untuk mendorong pil. Scroll mouse atau **Q / E** untuk memutar.
+- **Jepit**: tekan **Spasi** (atau klik kanan) untuk ganti alat, lalu tahan klik untuk mengangkat sampai 6 pil sekaligus.
+- Pil yang masuk ke wadah dengan warna yang salah akan terpental keluar.
+- **1–6** untuk emote, **Enter** untuk chat (di mode room).
+- Level selesai kalau semua pil sudah tersortir. Level berikutnya mulai otomatis.
+
+## Main bareng teman
+
+1. Klik **Buat room**. Kamu dapat kode 4 huruf, misalnya `KQTM`.
+2. Klik **Salin link** lalu kirim ke teman, atau suruh mereka ketik kodenya di **Gabung**.
+3. Semua orang menyortir di meja yang sama. Skor dihitung per orang, dan di akhir level ada daftar siapa yang paling banyak menyortir.
+
+Browser si pembuat room yang menjalankan permainan, jadi **tab host harus tetap terbuka**. Kalau host keluar, room-nya bubar.
+
+## Tingkat kesulitan
+
+| Level | Yang berubah |
+|---|---|
+| 1–2 | 2 warna, meja kecil |
+| 3+ | Muncul palang penghalang; pil mentok, tapi spatula bisa lewat di atasnya |
+| 4+ | Pil tersebar di beberapa tumpukan |
+| 6+ | Wadahnya mulai bergeser pelan-pelan |
+| tiap level | +1 warna tiap 2 level (maks 7), lebih banyak pil (sampai 210), meja makin luas, dan lantainya makin licin |
+
+## Menjalankan
+
+Cuma file statis, tidak perlu build dan tidak perlu server game sendiri.
+
+- **Lokal**: `python3 -m http.server 8080` lalu buka http://localhost:8080
+  (harus lewat server, karena membuka `index.html` langsung dari file tidak jalan untuk ES module).
+- **Online gratis (GitHub Pages)**: di repo GitHub buka *Settings → Pages*, pilih *Deploy from a branch*, pilih branch-nya dan folder `/ (root)`. Nanti link-nya berbentuk `https://<username>.github.io/separating-color-game/`.
+
+## Teknis
+
+- `js/levels.js`: generator level (warna, ukuran meja, wadah, palang, posisi pil)
+- `js/sim.js`: fisika pil, spatula, jepit, dan pengecekan wadah
+- `js/render.js`: gambar canvas
+- `js/net.js`: multiplayer peer-to-peer lewat WebRTC ([PeerJS](https://peerjs.com), MIT, di-vendor di `js/vendor/`)
+- `js/main.js`: lobby, input, loop game, sinkronisasi host ↔ tamu
+
+Host menjalankan simulasi dan mengirim posisi pil ±20× per detik. Tamu mengirim posisi tangannya. PeerJS memakai server sinyal publik gratis `0.peerjs.com` hanya untuk mempertemukan browser. Kalau mau pakai PeerServer sendiri, tambahkan `?peerhost=HOST&peerport=PORT&peerpath=/PATH` di URL.

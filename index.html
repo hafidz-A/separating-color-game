@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Pilah Pil</title>
+  <meta name="description" content="Game santai sortir pil warna-warni bareng teman. Main langsung di browser.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='6' y='22' width='52' height='20' rx='10' fill='%23ff8fb8'/%3E%3Crect x='32' y='22' width='26' height='20' rx='10' fill='%23ffd0e2'/%3E%3Crect x='32' y='22' width='10' height='20' fill='%23ffd0e2'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="cv" aria-label="Meja permainan"></canvas>
+
+  <header id="hud" hidden>
+    <div class="hud-left">
+      <button id="btnLeave" class="chip" title="Keluar ke menu">← Keluar</button>
+      <div id="roomChip" class="chip room" hidden>
+        Room <b id="roomCode">----</b>
+        <button id="btnCopy" class="mini" title="Salin link undangan">Salin link</button>
+      </div>
+    </div>
+    <div class="hud-center">
+      <div id="hudCount" class="count">0 / 0</div>
+      <div id="hudSub" class="sub">Level 1</div>
+    </div>
+    <div class="hud-right">
+      <button id="btnReshuffle" class="chip" title="Acak ulang level ini" hidden>↻ Acak ulang</button>
+      <button id="btnSound" class="chip" title="Suara">🔊</button>
+      <button id="btnSide" class="chip side-toggle" title="Pemain & chat">👥</button>
+    </div>
+  </header>
+
+  <aside id="side" hidden>
+    <h3>Pemain <span id="playerCount"></span></h3>
+    <ul id="players"></ul>
+    <div id="chatWrap">
+      <h3>Chat</h3>
+      <ul id="chatLog" aria-live="polite"></ul>
+      <form id="chatForm" autocomplete="off">
+        <input id="chatInput" maxlength="80" placeholder="Ketik pesan… (Enter)">
+      </form>
+    </div>
+  </aside>
+
+  <footer id="bar" hidden>
+    <div class="tools">
+      <button id="toolSweep" class="tool on" title="Spatula: tahan klik lalu dorong pil">🥄 Spatula</button>
+      <button id="toolGrab" class="tool" title="Jepit: tahan klik untuk mengangkat sampai 6 pil">🤏 Jepit</button>
+      <button id="rotL" class="tool icon" title="Putar (Q / scroll)">⟲</button>
+      <button id="rotR" class="tool icon" title="Putar (E / scroll)">⟳</button>
+    </div>
+    <div id="emotes" class="emotes"></div>
+    <div class="hint">Tahan klik = dorong · Scroll/Q/E = putar · Spasi = ganti alat · 1–6 = emote</div>
+  </footer>
+
+  <main id="lobby">
+    <div class="card">
+      <div class="logo">
+        <span class="cap"></span>
+        <h1>Pilah Pil</h1>
+      </div>
+      <p class="tag">Sortir pil warna-warni ke wadahnya. Santai, bareng teman, makin lama mejanya makin luas.</p>
+
+      <label class="field">
+        <span>Nama kamu</span>
+        <input id="nameInput" maxlength="16" placeholder="mis. Hafidz">
+      </label>
+      <label class="field small">
+        <span>Mulai dari level</span>
+        <input id="levelInput" type="number" min="1" max="30" value="1">
+      </label>
+
+      <div class="row">
+        <button id="btnSolo" class="btn ghost">Main sendiri</button>
+        <button id="btnHost" class="btn primary">Buat room</button>
+      </div>
+
+      <div class="divider"><span>atau gabung room teman</span></div>
+      <form id="joinForm" class="row join">
+        <input id="codeInput" maxlength="4" placeholder="KODE" autocapitalize="characters" spellcheck="false">
+        <button class="btn primary" type="submit">Gabung</button>
+      </form>
+
+      <p id="lobbyStatus" class="status" role="status"></p>
+
+      <details class="how">
+        <summary>Cara main</summary>
+        <ul>
+          <li>Tahan klik/sentuh lalu geser <b>spatula</b> untuk mendorong pil ke wadah yang warnanya sama.</li>
+          <li>Ganti ke <b>jepit</b> (Spasi / klik kanan) untuk mengangkat sampai 6 pil sekaligus.</li>
+          <li>Scroll atau Q/E untuk memutar spatula. Pil yang salah wadah akan terpental.</li>
+          <li>Level makin tinggi: meja makin luas, warna makin banyak, ada palang, dan wadahnya mulai bergeser.</li>
+          <li>Buat room, bagikan kodenya, lalu sortir bareng sampai 10 orang.</li>
+        </ul>
+      </details>
+      <p id="bestLine" class="best"></p>
+    </div>
+  </main>
+
+  <div id="clear" hidden>
+    <div class="card clear-card">
+      <h2 id="clearTitle">Level beres!</h2>
+      <p id="clearTime"></p>
+      <ol id="clearList"></ol>
+      <p id="clearNext" class="sub"></p>
+    </div>
+  </div>
+
+  <div id="toast" role="status"></div>
+
+  <script src="js/vendor/peerjs.min.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
