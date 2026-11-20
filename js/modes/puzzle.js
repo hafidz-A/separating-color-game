@@ -1,6 +1,7 @@
 // Mode: Pasang Puzzle — co-op jigsaw. Drag pieces into the frame; on later
 // levels pieces arrive rotated and must be turned before they fit.
 import { mulberry32 } from '../levels.js';
+import { PHOTOS } from '../photos.js';
 
 const GRIDS = [[3, 2], [3, 3], [4, 3], [4, 4], [5, 4], [6, 4], [6, 5], [7, 5], [7, 6], [8, 6]];
 export const PIECE = 110; // piece size in world units
@@ -41,6 +42,7 @@ export function makeDef(n, seed) {
   return {
     mode: 'puzzle', n, seed, W, H, cols, rows, picW, picH, fx, fy, rot,
     style: Math.floor(rng() * PIC_STYLES), picSeed: Math.floor(rng() * 1e9),
+    photo: PHOTOS.length ? Math.floor(rng() * PHOTOS.length) : -1,
     hTabs, vTabs, pieces, time: 0,
   };
 }

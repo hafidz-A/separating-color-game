@@ -4,6 +4,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { toyMaterial, roundRectShape, roundRectPath, slab } from '../render3d.js';
 import { PIECE } from '../modes/puzzle.js';
 import { mulberry32 } from '../levels.js';
+import { PHOTOS } from '../photos.js';
 
 const KNOB = [[0.35, 0], [0.37, 0.05], [0.34, 0.12], [0.36, 0.2], [0.43, 0.25], [0.5, 0.26], [0.57, 0.25], [0.64, 0.2], [0.66, 0.12], [0.63, 0.05], [0.65, 0]];
 const PIECE_TOP = 6;
@@ -178,6 +179,24 @@ export class PuzzleScene {
     pieceTex.offset.set(0, 1);
     const ghostTex = new THREE.CanvasTexture(canvas);
     ghostTex.colorSpace = THREE.SRGBColorSpace;
+
+    // A real photo, when one is listed: draw it over the generated picture
+    // (cropped to fill the frame) as soon as it has loaded.
+    const photo = PHOTOS[world.def.photo];
+    if (photo) {
+      const img = new Image();
+      img.onload = () => {
+        if (this.world !== world) return;
+        const g2 = canvas.getContext('2d');
+        const cw = canvas.width, ch = canvas.height;
+        const s = Math.max(cw / img.width, ch / img.height);
+        const w = img.width * s, h = img.height * s;
+        g2.drawImage(img, (cw - w) / 2, (ch - h) / 2, w, h);
+        pieceTex.needsUpdate = true;
+        ghostTex.needsUpdate = true;
+      };
+      img.src = 'img/puzzle/' + encodeURIComponent(photo.file);
+    }
 
     // Frame
     const ox = fx - W / 2, oz = fy - H / 2;

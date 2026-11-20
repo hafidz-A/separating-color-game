@@ -10,6 +10,18 @@ Kumpulan game santai 3D di browser buat dimainkan sendiri, berdua sama pasangan,
 
 Di menu awal pilih **🎲 Acak tiap level** (game berganti tiap level) atau satu game saja.
 
+## Foto untuk puzzle
+
+Taruh foto (JPG, landscape, sekitar 1600px) di `img/puzzle/`, lalu daftarkan di `js/photos.js`:
+
+```js
+export const PHOTOS = [
+  { file: 'balon-udara.jpg', title: 'Balon udara' },
+];
+```
+
+Selama daftarnya kosong (atau foto gagal dimuat), puzzle memakai gambar buatan otomatis.
+
 ## Kontrol umum
 
 - **1–6** untuk emote, **Enter** untuk chat (di mode room).
